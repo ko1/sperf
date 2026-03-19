@@ -62,8 +62,8 @@ module Sprof
 
   TOP_N = 10
 
+  # Samples from C are now [[path_str, label_str], ...], weight]
   def self.print_top(data)
-    string_table = data[:string_table]
     samples_raw = data[:samples]
     return if !samples_raw || samples_raw.empty?
 
@@ -76,8 +76,7 @@ module Sprof
       seen = {}
 
       frames.each_with_index do |frame, i|
-        label = string_table[frame[1]] || ""
-        path = string_table[frame[0]] || ""
+        path, label = frame
         key = [label, path]
 
         flat[key] += weight if i == 0  # leaf = first element (deepest frame)
@@ -121,27 +120,45 @@ module Sprof
 
   # Hand-written protobuf encoder for pprof profile format.
   # Only runs once at stop time, so performance is not critical.
+  #
+  # Samples from C are: [[[path_str, label_str], ...], weight]
+  # This encoder builds its own string table for pprof output.
   module PProf
     module_function
 
     def encode(data)
-      string_table = data[:string_table]
       samples_raw = data[:samples]
       frequency = data[:frequency]
       interval_ns = 1_000_000_000 / frequency
-
       mode = data[:mode] || :cpu
 
-      # Merge samples with identical stacks
-      merged = merge_samples(samples_raw)
+      # Build string table: index 0 must be ""
+      string_table = [""]
+      string_index = { "" => 0 }
+
+      intern = ->(s) {
+        string_index[s] ||= begin
+          idx = string_table.size
+          string_table << s
+          idx
+        end
+      }
+
+      # Convert string frames to index frames and merge identical stacks
+      merged = Hash.new(0)
+      samples_raw.each do |frames, weight|
+        key = frames.map { |path, label| [intern.(path), intern.(label)] }
+        merged[key] += weight
+      end
+      merged = merged.to_a
 
       # Build location/function tables
-      locations, functions = build_tables(merged, string_table)
+      locations, functions = build_tables(merged)
 
-      # Intern type label and unit in string table
+      # Intern type label and unit
       type_label = mode == :wall ? "wall" : "cpu"
-      type_idx = string_table_index(string_table, type_label)
-      ns_idx = string_table_index(string_table, "nanoseconds")
+      type_idx = intern.(type_label)
+      ns_idx = intern.("nanoseconds")
 
       # Encode Profile message
       buf = "".b
@@ -152,10 +169,8 @@ module Sprof
       # field 2: sample (repeated Sample)
       merged.each do |frames, weight|
         sample_buf = "".b
-        # location_id (repeated uint64, packed)
         loc_ids = frames.map { |f| locations[f] }
         sample_buf << encode_packed_uint64(1, loc_ids)
-        # value (repeated int64, packed)
         sample_buf << encode_packed_int64(2, [weight])
         buf << encode_message(2, sample_buf)
       end
@@ -163,11 +178,10 @@ module Sprof
       # field 4: location (repeated Location)
       locations.each do |frame, loc_id|
         loc_buf = "".b
-        loc_buf << encode_uint64(1, loc_id) # id
-        # line (repeated Line)
+        loc_buf << encode_uint64(1, loc_id)
         line_buf = "".b
         func_id = functions[frame]
-        line_buf << encode_uint64(1, func_id)   # function_id
+        line_buf << encode_uint64(1, func_id)
         loc_buf << encode_message(4, line_buf)
         buf << encode_message(4, loc_buf)
       end
@@ -175,7 +189,7 @@ module Sprof
       # field 5: function (repeated Function)
       functions.each do |frame, func_id|
         func_buf = "".b
-        func_buf << encode_uint64(1, func_id)   # id
+        func_buf << encode_uint64(1, func_id)
         func_buf << encode_int64(2, frame[1])    # name (label_idx)
         func_buf << encode_int64(4, frame[0])    # filename (path_idx)
         buf << encode_message(5, func_buf)
@@ -195,18 +209,9 @@ module Sprof
       buf
     end
 
-    def merge_samples(samples_raw)
-      merged = Hash.new(0)
-      samples_raw.each do |frames, weight|
-        key = frames.map { |f| [f[0], f[1]] }
-        merged[key] += weight
-      end
-      merged.to_a
-    end
-
-    def build_tables(merged, string_table)
-      locations = {}  # frame_key -> location_id
-      functions = {}  # frame_key -> function_id
+    def build_tables(merged)
+      locations = {}
+      functions = {}
       next_id = 1
 
       merged.each do |frames, _weight|
@@ -222,19 +227,10 @@ module Sprof
       [locations, functions]
     end
 
-    def string_table_index(string_table, str)
-      idx = string_table.index(str)
-      unless idx
-        idx = string_table.size
-        string_table << str
-      end
-      idx
-    end
-
     # --- Protobuf encoding helpers ---
 
     def encode_varint(value)
-      value = value & 0xFFFFFFFF_FFFFFFFF if value < 0  # zigzag not needed for unsigned
+      value = value & 0xFFFFFFFF_FFFFFFFF if value < 0
       buf = "".b
       loop do
         byte = value & 0x7F

@@ -16,7 +16,6 @@ class TestSprof < Test::Unit::TestCase
     data = Sprof.stop
 
     assert_kind_of Hash, data
-    assert_include data, :string_table
     assert_include data, :samples
     assert_include data, :frequency
     assert_equal 100, data[:frequency]
@@ -121,33 +120,22 @@ class TestSprof < Test::Unit::TestCase
     data = Sprof.stop
     assert_not_nil data
     samples = data[:samples]
-    string_table = data[:string_table]
 
     # Must have crossed initial capacity of 1024
     assert_operator samples.size, :>, 1024,
       "Expected >1024 samples to exercise realloc (got #{samples.size})"
 
     # Verify all samples have valid data
-    samples.each_with_index do |(frames, weight), i|
-      assert_operator weight, :>, 0, "Sample #{i}: weight should be positive"
-      assert_operator frames.size, :>, 0, "Sample #{i}: should have at least 1 frame"
-      frames.each_with_index do |frame, j|
-        assert_operator frame[0], :>=, 0, "Sample #{i} frame #{j}: invalid path_idx"
-        assert_operator frame[0], :<, string_table.size, "Sample #{i} frame #{j}: path_idx out of range"
-        assert_operator frame[1], :>=, 0, "Sample #{i} frame #{j}: invalid label_idx"
-        assert_operator frame[1], :<, string_table.size, "Sample #{i} frame #{j}: label_idx out of range"
-      end
-    end
+    assert_valid_samples(samples)
   end
 
-  # Frame pool initial capacity is ~87K frames.
+  # Frame pool initial capacity is ~131K frames (1MB / 8 bytes per VALUE).
   # Use deep recursion + many threads to generate lots of frames quickly.
   def test_frame_pool_realloc
     Sprof.start(frequency: 1000)
 
     threads = 8.times.map do
       Thread.new do
-        # Deep recursion to increase frames per sample
         deep_recurse(100) { 20_000_000.times { 1 + 1 } }
       end
     end
@@ -156,27 +144,17 @@ class TestSprof < Test::Unit::TestCase
     data = Sprof.stop
     assert_not_nil data
     samples = data[:samples]
-    string_table = data[:string_table]
 
     # Calculate total frames stored
     total_frames = samples.sum { |frames, _| frames.size }
-    initial_pool = 1024 * 1024 / 8  # ~131072 (VALUE is 8 bytes on 64-bit)
+    initial_pool = 1024 * 1024 / 8  # ~131072
 
     assert_operator total_frames, :>, initial_pool,
       "Expected >#{initial_pool} total frames to exercise frame pool realloc (got #{total_frames})"
 
-    # Verify early samples (before realloc) and late samples (after realloc)
-    # both have valid frame data
-    check_targets = [samples.first(10), samples.last(10)].flatten(1)
-    check_targets.each do |frames, weight|
-      assert_operator weight, :>, 0, "weight should be positive"
-      frames.each do |frame|
-        assert_operator frame[0], :>=, 0
-        assert_operator frame[0], :<, string_table.size
-        assert_operator frame[1], :>=, 0
-        assert_operator frame[1], :<, string_table.size
-      end
-    end
+    # Verify early and late samples both have valid frame data
+    assert_valid_samples(samples.first(10))
+    assert_valid_samples(samples.last(10))
   end
 
   # Generate deep call stacks via recursion
@@ -191,21 +169,10 @@ class TestSprof < Test::Unit::TestCase
     assert_operator samples.size, :>, 0
 
     max_depth = samples.map { |frames, _| frames.size }.max
-    # The recursive calls + block + test framework should produce deep stacks
     assert_operator max_depth, :>=, 50,
       "Expected deep stacks (max depth #{max_depth})"
 
-    # All frame indices should be valid
-    string_table = data[:string_table]
-    samples.each do |frames, weight|
-      assert_operator weight, :>, 0
-      frames.each do |frame|
-        assert_operator frame[0], :>=, 0
-        assert_operator frame[0], :<, string_table.size
-        assert_operator frame[1], :>=, 0
-        assert_operator frame[1], :<, string_table.size
-      end
-    end
+    assert_valid_samples(samples)
   end
 
   # Threads created and destroyed during profiling
@@ -221,20 +188,8 @@ class TestSprof < Test::Unit::TestCase
 
     data = Sprof.stop
     assert_not_nil data
-    samples = data[:samples]
-    assert_operator samples.size, :>, 0
-
-    # All weights positive, all frame indices valid
-    string_table = data[:string_table]
-    samples.each do |frames, weight|
-      assert_operator weight, :>, 0
-      frames.each do |frame|
-        assert_operator frame[0], :>=, 0
-        assert_operator frame[0], :<, string_table.size
-        assert_operator frame[1], :>=, 0
-        assert_operator frame[1], :<, string_table.size
-      end
-    end
+    assert_operator data[:samples].size, :>, 0
+    assert_valid_samples(data[:samples])
   end
 
   # Restart with threads that survive across sessions
@@ -281,18 +236,6 @@ class TestSprof < Test::Unit::TestCase
     end
   end
 
-  private
-
-  def deep_recurse(depth, &block)
-    if depth <= 0
-      block.call
-    else
-      deep_recurse(depth - 1, &block)
-    end
-  end
-
-  # --- End boundary tests ---
-
   def test_pprof_output
     Dir.mktmpdir do |dir|
       path = File.join(dir, "test.pb.gz")
@@ -308,6 +251,28 @@ class TestSprof < Test::Unit::TestCase
       # Field 1, wire type 2 (length-delimited) = (1 << 3) | 2 = 0x0a
       assert_equal 0x0a, decompressed.getbyte(0),
         "First field should be sample_type (field 1, length-delimited)"
+    end
+  end
+
+  private
+
+  def deep_recurse(depth, &block)
+    if depth <= 0
+      block.call
+    else
+      deep_recurse(depth - 1, &block)
+    end
+  end
+
+  # Frames are now [path_str, label_str] (Ruby strings)
+  def assert_valid_samples(samples)
+    samples.each_with_index do |(frames, weight), i|
+      assert_operator weight, :>, 0, "Sample #{i}: weight should be positive"
+      assert_operator frames.size, :>, 0, "Sample #{i}: should have at least 1 frame"
+      frames.each_with_index do |frame, j|
+        assert_kind_of String, frame[0], "Sample #{i} frame #{j}: path should be String"
+        assert_kind_of String, frame[1], "Sample #{i} frame #{j}: label should be String"
+      end
     end
   end
 end

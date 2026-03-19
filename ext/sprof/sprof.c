@@ -9,7 +9,6 @@
 
 #define SPROF_MAX_STACK_DEPTH 512
 #define SPROF_INITIAL_SAMPLES 1024
-#define SPROF_INITIAL_STRINGS 256
 #define SPROF_INITIAL_FRAME_POOL (1024 * 1024 / sizeof(VALUE)) /* ~1MB */
 
 /* ---- Data structures ---- */
@@ -19,13 +18,6 @@ typedef struct sprof_sample {
     size_t frame_start; /* index into frame_pool */
     int64_t weight;
 } sprof_sample_t;
-
-typedef struct sprof_string_table {
-    char **strings;
-    size_t count;
-    size_t capacity;
-    st_table *hash;
-} sprof_string_table_t;
 
 typedef struct sprof_thread_data {
     int64_t prev_cpu_ns;
@@ -43,7 +35,6 @@ typedef struct sprof_profiler {
     VALUE *frame_pool;       /* raw frame VALUEs from rb_profile_thread_frames */
     size_t frame_pool_count;
     size_t frame_pool_capacity;
-    sprof_string_table_t string_table;
     rb_internal_thread_specific_key_t ts_key;
     rb_internal_thread_event_hook_t *thread_hook;
     /* Sampling overhead stats */
@@ -74,71 +65,6 @@ static const rb_data_type_t sprof_profiler_type = {
         .dsize = NULL,
     },
 };
-
-/* ---- String table ---- */
-
-static void
-sprof_string_table_init(sprof_string_table_t *st)
-{
-    st->capacity = SPROF_INITIAL_STRINGS;
-    st->count = 0;
-    st->strings = (char **)calloc(st->capacity, sizeof(char *));
-    if (!st->strings) rb_raise(rb_eNoMemError, "sprof: failed to allocate string table");
-    st->hash = st_init_strtable();
-
-    /* Index 0 must be empty string for pprof */
-    st->strings[0] = strdup("");
-    if (!st->strings[0]) rb_raise(rb_eNoMemError, "sprof: failed to allocate string");
-    st_insert(st->hash, (st_data_t)st->strings[0], (st_data_t)0);
-    st->count = 1;
-}
-
-static int
-sprof_string_table_intern(sprof_string_table_t *st, const char *str)
-{
-    st_data_t idx;
-
-    if (str == NULL) str = "";
-
-    if (st_lookup(st->hash, (st_data_t)str, &idx)) {
-        return (int)idx;
-    }
-
-    if (st->count >= st->capacity) {
-        size_t new_cap = st->capacity * 2;
-        char **new_strings = (char **)realloc(st->strings, new_cap * sizeof(char *));
-        if (!new_strings) return -1;
-        st->strings = new_strings;
-        st->capacity = new_cap;
-    }
-
-    char *dup = strdup(str);
-    if (!dup) return -1;
-
-    idx = (st_data_t)st->count;
-    st->strings[st->count] = dup;
-    st_insert(st->hash, (st_data_t)st->strings[st->count], idx);
-    st->count++;
-
-    return (int)idx;
-}
-
-static void
-sprof_string_table_free(sprof_string_table_t *st)
-{
-    size_t i;
-    for (i = 0; i < st->count; i++) {
-        free(st->strings[i]);
-    }
-    free(st->strings);
-    st->strings = NULL;
-    if (st->hash) {
-        st_free_table(st->hash);
-        st->hash = NULL;
-    }
-    st->count = 0;
-    st->capacity = 0;
-}
 
 /* ---- CPU time ---- */
 
@@ -311,6 +237,22 @@ sprof_timer_func(void *arg)
     return NULL;
 }
 
+/* ---- Resolve frame VALUE to [path, label] Ruby strings ---- */
+
+static VALUE
+sprof_resolve_frame(VALUE fval)
+{
+    VALUE path = rb_profile_frame_path(fval);
+    VALUE label = rb_profile_frame_full_label(fval);
+
+    if (NIL_P(path))  path  = rb_str_new_lit("<C method>");
+
+    if (NIL_P(path))  path  = rb_str_new_cstr("");
+    if (NIL_P(label)) label = rb_str_new_cstr("");
+
+    return rb_ary_new3(2, path, label);
+}
+
 /* ---- Ruby API ---- */
 
 static VALUE
@@ -431,7 +373,7 @@ rb_sprof_start(int argc, VALUE *argv, VALUE self)
 static VALUE
 rb_sprof_stop(VALUE self)
 {
-    VALUE result, string_table_ary, samples_ary;
+    VALUE result, samples_ary;
     size_t i;
     int j;
 
@@ -462,9 +404,6 @@ rb_sprof_stop(VALUE self)
         }
     }
 
-    /* Build string table by resolving frame VALUEs now */
-    sprof_string_table_init(&g_profiler.string_table);
-
     /* Build result hash */
     result = rb_hash_new();
 
@@ -479,43 +418,20 @@ rb_sprof_stop(VALUE self)
     rb_hash_aset(result, ID2SYM(rb_intern("sampling_count")), SIZET2NUM(g_profiler.sampling_count));
     rb_hash_aset(result, ID2SYM(rb_intern("sampling_time_ns")), LONG2NUM(g_profiler.sampling_total_ns));
 
-    /* samples: array of [frames_array, weight] */
-    /* Resolve raw frame VALUEs to [path_idx, label_idx] via string table */
+    /* samples: array of [frames_array, weight]
+     * Each frame is [path_string, label_string] */
     samples_ary = rb_ary_new_capa((long)g_profiler.sample_count);
     for (i = 0; i < g_profiler.sample_count; i++) {
         sprof_sample_t *s = &g_profiler.samples[i];
         VALUE frames = rb_ary_new_capa(s->depth);
         for (j = 0; j < s->depth; j++) {
             VALUE fval = g_profiler.frame_pool[s->frame_start + j];
-
-            VALUE path = rb_profile_frame_path(fval);
-            VALUE label = rb_profile_frame_label(fval);
-
-            if (NIL_P(label)) label = rb_profile_frame_method_name(fval);
-            if (NIL_P(path))  path  = rb_profile_frame_classpath(fval);
-
-            const char *path_str = NIL_P(path) ? "" : StringValueCStr(path);
-            const char *label_str = NIL_P(label) ? "" : StringValueCStr(label);
-
-            int pidx = sprof_string_table_intern(&g_profiler.string_table, path_str);
-            int lidx = sprof_string_table_intern(&g_profiler.string_table, label_str);
-
-            VALUE frame = rb_ary_new3(2,
-                INT2NUM(pidx),
-                INT2NUM(lidx));
-            rb_ary_push(frames, frame);
+            rb_ary_push(frames, sprof_resolve_frame(fval));
         }
         VALUE sample = rb_ary_new3(2, frames, LONG2NUM(s->weight));
         rb_ary_push(samples_ary, sample);
     }
     rb_hash_aset(result, ID2SYM(rb_intern("samples")), samples_ary);
-
-    /* string_table */
-    string_table_ary = rb_ary_new_capa((long)g_profiler.string_table.count);
-    for (i = 0; i < g_profiler.string_table.count; i++) {
-        rb_ary_push(string_table_ary, rb_str_new_cstr(g_profiler.string_table.strings[i]));
-    }
-    rb_hash_aset(result, ID2SYM(rb_intern("string_table")), string_table_ary);
 
     /* Cleanup */
     free(g_profiler.samples);
@@ -523,7 +439,6 @@ rb_sprof_stop(VALUE self)
     free(g_profiler.frame_pool);
     g_profiler.frame_pool = NULL;
     g_profiler.frame_pool_count = 0;
-    sprof_string_table_free(&g_profiler.string_table);
 
     return result;
 }
