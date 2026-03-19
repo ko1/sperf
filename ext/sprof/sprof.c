@@ -64,10 +64,12 @@ sprof_string_table_init(sprof_string_table_t *st)
     st->capacity = SPROF_INITIAL_STRINGS;
     st->count = 0;
     st->strings = (char **)calloc(st->capacity, sizeof(char *));
+    if (!st->strings) rb_raise(rb_eNoMemError, "sprof: failed to allocate string table");
     st->hash = st_init_strtable();
 
     /* Index 0 must be empty string for pprof */
     st->strings[0] = strdup("");
+    if (!st->strings[0]) rb_raise(rb_eNoMemError, "sprof: failed to allocate string");
     st_insert(st->hash, (st_data_t)st->strings[0], (st_data_t)0);
     st->count = 1;
 }
@@ -84,12 +86,18 @@ sprof_string_table_intern(sprof_string_table_t *st, const char *str)
     }
 
     if (st->count >= st->capacity) {
-        st->capacity *= 2;
-        st->strings = (char **)realloc(st->strings, st->capacity * sizeof(char *));
+        size_t new_cap = st->capacity * 2;
+        char **new_strings = (char **)realloc(st->strings, new_cap * sizeof(char *));
+        if (!new_strings) return -1;
+        st->strings = new_strings;
+        st->capacity = new_cap;
     }
 
+    char *dup = strdup(str);
+    if (!dup) return -1;
+
     idx = (st_data_t)st->count;
-    st->strings[st->count] = strdup(str);
+    st->strings[st->count] = dup;
     st_insert(st->hash, (st_data_t)st->strings[st->count], idx);
     st->count++;
 
@@ -137,15 +145,20 @@ sprof_wall_time_ns(void)
 
 /* ---- Sample buffer ---- */
 
-static void
+/* Returns 0 on success, -1 on allocation failure */
+static int
 sprof_ensure_sample_capacity(sprof_profiler_t *prof)
 {
     if (prof->sample_count >= prof->sample_capacity) {
-        prof->sample_capacity *= 2;
-        prof->samples = (sprof_sample_t *)realloc(
+        size_t new_cap = prof->sample_capacity * 2;
+        sprof_sample_t *new_samples = (sprof_sample_t *)realloc(
             prof->samples,
-            prof->sample_capacity * sizeof(sprof_sample_t));
+            new_cap * sizeof(sprof_sample_t));
+        if (!new_samples) return -1;
+        prof->samples = new_samples;
+        prof->sample_capacity = new_cap;
     }
+    return 0;
 }
 
 /* ---- Thread event hook ---- */
@@ -209,6 +222,7 @@ sprof_sample_job(void *arg)
         sprof_thread_data_t *td = (sprof_thread_data_t *)rb_internal_thread_specific_get(thread, prof->ts_key);
         if (td == NULL) {
             td = (sprof_thread_data_t *)calloc(1, sizeof(sprof_thread_data_t));
+            if (!td) continue; /* allocation failed, skip this thread */
             rb_internal_thread_specific_set(thread, prof->ts_key, td);
             td->prev_cpu_ns = time_now;
             continue; /* Skip first sample for this thread */
@@ -224,12 +238,12 @@ sprof_sample_job(void *arg)
         if (depth <= 0) continue;
 
         /* Record sample */
-        sprof_ensure_sample_capacity(prof);
+        if (sprof_ensure_sample_capacity(prof) < 0) continue;
         sprof_sample_t *sample = &prof->samples[prof->sample_count];
         sample->depth = depth;
         sample->weight = weight;
 
-        int j;
+        int j, alloc_failed = 0;
         for (j = 0; j < depth; j++) {
             VALUE path = rb_profile_frame_path(frame_buf[j]);
             VALUE label = rb_profile_frame_label(frame_buf[j]);
@@ -241,11 +255,16 @@ sprof_sample_job(void *arg)
             const char *path_str = NIL_P(path) ? "" : StringValueCStr(path);
             const char *label_str = NIL_P(label) ? "" : StringValueCStr(label);
 
-            sample->frames[j].path_idx = sprof_string_table_intern(&prof->string_table, path_str);
-            sample->frames[j].label_idx = sprof_string_table_intern(&prof->string_table, label_str);
+            int pidx = sprof_string_table_intern(&prof->string_table, path_str);
+            int lidx = sprof_string_table_intern(&prof->string_table, label_str);
+            if (pidx < 0 || lidx < 0) { alloc_failed = 1; break; }
+
+            sample->frames[j].path_idx = pidx;
+            sample->frames[j].label_idx = lidx;
             sample->frames[j].lineno = line_buf[j];
         }
 
+        if (alloc_failed) continue;
         prof->sample_count++;
     }
 
@@ -316,6 +335,9 @@ rb_sprof_start(int argc, VALUE *argv, VALUE self)
     g_profiler.sample_capacity = SPROF_INITIAL_SAMPLES;
     g_profiler.samples = (sprof_sample_t *)calloc(
         g_profiler.sample_capacity, sizeof(sprof_sample_t));
+    if (!g_profiler.samples) {
+        rb_raise(rb_eNoMemError, "sprof: failed to allocate sample buffer");
+    }
 
     sprof_string_table_init(&g_profiler.string_table);
 
@@ -340,6 +362,14 @@ rb_sprof_start(int argc, VALUE *argv, VALUE self)
         }
         if (init_time >= 0) {
             sprof_thread_data_t *td = (sprof_thread_data_t *)calloc(1, sizeof(sprof_thread_data_t));
+            if (!td) {
+                free(g_profiler.samples);
+                g_profiler.samples = NULL;
+                sprof_string_table_free(&g_profiler.string_table);
+                rb_internal_thread_remove_event_hook(g_profiler.thread_hook);
+                g_profiler.thread_hook = NULL;
+                rb_raise(rb_eNoMemError, "sprof: failed to allocate thread data");
+            }
             td->prev_cpu_ns = init_time;
             rb_internal_thread_specific_set(cur_thread, g_profiler.ts_key, td);
         }
@@ -347,7 +377,24 @@ rb_sprof_start(int argc, VALUE *argv, VALUE self)
 
     g_profiler.running = 1;
 
-    pthread_create(&g_profiler.timer_thread, NULL, sprof_timer_func, &g_profiler);
+    if (pthread_create(&g_profiler.timer_thread, NULL, sprof_timer_func, &g_profiler) != 0) {
+        g_profiler.running = 0;
+        /* Clean up thread data for current thread */
+        {
+            VALUE cur = rb_thread_current();
+            sprof_thread_data_t *td = (sprof_thread_data_t *)rb_internal_thread_specific_get(cur, g_profiler.ts_key);
+            if (td) {
+                free(td);
+                rb_internal_thread_specific_set(cur, g_profiler.ts_key, NULL);
+            }
+        }
+        rb_internal_thread_remove_event_hook(g_profiler.thread_hook);
+        g_profiler.thread_hook = NULL;
+        free(g_profiler.samples);
+        g_profiler.samples = NULL;
+        sprof_string_table_free(&g_profiler.string_table);
+        rb_raise(rb_eRuntimeError, "sprof: failed to create timer thread");
+    }
 
     return Qtrue;
 }
