@@ -13,11 +13,11 @@ parser = OptionParser.new do |opts|
     output = v
   end
 
-  opts.on("-f", "--frequency HZ", Integer, "Sampling frequency in Hz (default: 1000)") do |v|
+  opts.on("-f", "--frequency HZ", Integer, "Sampling frequency in Hz (default: 100)") do |v|
     frequency = v
   end
 
-  opts.on("-m", "--mode MODE", "Profiling mode: cpu or wall (default: cpu)") do |v|
+  opts.on("-m", "--mode MODE", %w[cpu wall], "Profiling mode: cpu or wall (default: cpu)") do |v|
     mode = v
   end
 

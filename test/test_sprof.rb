@@ -81,6 +81,31 @@ class TestSprof < Test::Unit::TestCase
     assert_nil Sprof.stop
   end
 
+  def test_restart_clears_thread_state
+    # First session
+    Sprof.start(frequency: 1000)
+    1_000_000.times { 1 + 1 }
+    data1 = Sprof.stop
+
+    # Sleep to create a gap between sessions
+    sleep 0.2
+
+    # Second session - weights should NOT include the 200ms gap
+    Sprof.start(frequency: 1000)
+    1_000_000.times { 1 + 1 }
+    data2 = Sprof.stop
+
+    assert_not_nil data1
+    assert_not_nil data2
+
+    max_weight2 = data2[:samples].map { |_, w| w }.max || 0
+
+    # The max weight in session 2 should be reasonable (< 100ms).
+    # Without the fix, it would include the 200ms sleep gap.
+    assert_operator max_weight2, :<, 100_000_000,
+      "Max weight in second session (#{max_weight2}ns) should not include the gap between sessions"
+  end
+
   def test_pprof_output
     Dir.mktmpdir do |dir|
       path = File.join(dir, "test.pb.gz")

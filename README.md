@@ -26,7 +26,7 @@ Timer thread (pthread)           VM thread (postponed job)
                                         record(backtrace, weight)
 ```
 
-1. A **timer thread** (native pthread) fires `rb_postponed_job_trigger()` at the configured frequency (default: 1000 Hz)
+1. A **timer thread** (native pthread) fires `rb_postponed_job_trigger()` at the configured frequency (default: 100 Hz)
 2. At the next safepoint, the VM executes the **sampling callback** as a postponed job
 3. For each live Ruby thread, the callback:
    - Reads the current clock value (CPU time or wall time, depending on mode)
@@ -74,19 +74,19 @@ Requires Ruby >= 4.0.0 (Linux only; uses Linux-specific thread CPU clock ABI).
 require "sprof"
 
 # Block form
-Sprof.profile(output: "profile.pb.gz", frequency: 1000, mode: :cpu) do
+Sprof.profile(output: "profile.pb.gz", frequency: 100, mode: :cpu) do
   # code to profile
 end
 
 # Manual start/stop
-Sprof.start(frequency: 1000, mode: :wall)
+Sprof.start(frequency: 100, mode: :wall)
 # ... code to profile ...
 Sprof.save("profile.pb.gz")
 ```
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `frequency:` | `1000` | Sampling frequency in Hz (1-1000000) |
+| `frequency:` | `100` | Sampling frequency in Hz (1-1000000) |
 | `mode:` | `:cpu` | `:cpu` for CPU time, `:wall` for wall time |
 | `output:` | `"sprof.data"` | Output file path (block form only) |
 
@@ -95,7 +95,7 @@ Sprof.save("profile.pb.gz")
 ```bash
 # Profile any Ruby command
 sprof exec ruby my_app.rb
-sprof -o profile.pb.gz -f 1000 exec ruby my_app.rb
+sprof -o profile.pb.gz -f 100 exec ruby my_app.rb
 
 # View results
 go tool pprof -http=:8080 profile.pb.gz
@@ -106,21 +106,21 @@ go tool pprof -flamegraph profile.pb.gz > flame.html
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-o PATH` | `sprof.data` | Output file |
-| `-f HZ` | `1000` | Sampling frequency |
+| `-f HZ` | `100` | Sampling frequency |
 
 ### Environment Variables
 
 For use without code changes (e.g., profiling Rails):
 
 ```bash
-SPROF_ENABLED=1 SPROF_MODE=wall SPROF_FREQUENCY=1000 SPROF_OUTPUT=profile.pb.gz ruby app.rb
+SPROF_ENABLED=1 SPROF_MODE=wall SPROF_FREQUENCY=100 SPROF_OUTPUT=profile.pb.gz ruby app.rb
 ```
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SPROF_ENABLED` | - | Set to `"1"` to enable |
 | `SPROF_MODE` | `"cpu"` | `"cpu"` or `"wall"` |
-| `SPROF_FREQUENCY` | `1000` | Sampling frequency in Hz |
+| `SPROF_FREQUENCY` | `100` | Sampling frequency in Hz |
 | `SPROF_OUTPUT` | `"sprof.data"` | Output file path |
 
 ## When to Use cpu vs wall Mode

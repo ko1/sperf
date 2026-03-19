@@ -371,6 +371,21 @@ rb_sprof_stop(VALUE self)
         g_profiler.thread_hook = NULL;
     }
 
+    /* Clean up thread-specific data for all live threads */
+    {
+        VALUE threads = rb_funcall(rb_cThread, id_list, 0);
+        long tc = RARRAY_LEN(threads);
+        long ti;
+        for (ti = 0; ti < tc; ti++) {
+            VALUE thread = RARRAY_AREF(threads, ti);
+            sprof_thread_data_t *td = (sprof_thread_data_t *)rb_internal_thread_specific_get(thread, g_profiler.ts_key);
+            if (td) {
+                free(td);
+                rb_internal_thread_specific_set(thread, g_profiler.ts_key, NULL);
+            }
+        }
+    }
+
     /* Build result hash */
     result = rb_hash_new();
 

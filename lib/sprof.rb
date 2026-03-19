@@ -110,7 +110,11 @@ module Sprof
 
   # ENV-based auto-start for CLI usage
   if ENV["SPROF_ENABLED"] == "1"
-    _sprof_mode = ENV["SPROF_MODE"] == "wall" ? :wall : :cpu
+    _sprof_mode_str = ENV["SPROF_MODE"] || "cpu"
+    unless %w[cpu wall].include?(_sprof_mode_str)
+      raise ArgumentError, "SPROF_MODE must be 'cpu' or 'wall', got: #{_sprof_mode_str.inspect}"
+    end
+    _sprof_mode = _sprof_mode_str == "wall" ? :wall : :cpu
     start(frequency: (ENV["SPROF_FREQUENCY"] || 100).to_i, mode: _sprof_mode,
           verbose: ENV["SPROF_VERBOSE"] == "1")
     at_exit { save(ENV["SPROF_OUTPUT"] || "sprof.data") }
