@@ -269,23 +269,20 @@ This scenario tests the statistical sampling accuracy: with very short methods, 
 
 ### Analysis
 
-**vernier wall 10kHz achieves the best ratio accuracy (6.5%).** Vernier assigns uniform weight to each sample, and at 10kHz it collects ~500 samples across the 50ms runtime. Uniform weighting means the ratio of samples directly reflects the ratio of time spent in each method, which in turn reflects the call frequency (since each call takes the same tiny amount of time).
+The core issue for all profilers is **sample count**. The total runtime is only ~50ms, so at 1kHz there are ~50 samples to distribute across 10 methods. At 10kHz there are ~500 samples, which is enough for reasonable statistical accuracy. The results confirm this: all profilers improve with higher frequency.
 
-**stackprof wall 10kHz is also strong (18.5%).** Same principle -- uniform sample weighting works well for ratio reconstruction.
+**vernier wall 10kHz achieves the best ratio accuracy (6.5%).** At 10kHz it collects ~500 samples across the 50ms runtime -- enough for the sample distribution to converge to the true call-frequency ratio.
+
+**stackprof wall 10kHz is also strong (18.5%).** Same principle -- sufficient samples yield good accuracy.
 
 **stackprof cpu gets worse at higher frequency (88% -> 132%).** At 10kHz, stackprof's cpu-mode signal fires so frequently that `Process.clock_gettime` (called inside each `rw` method) dominates the leaf samples, distorting the method-level TOTAL counts.
 
-**sprof improves but remains moderate (53% -> 22% cpu, 43% -> 25% wall).** sprof's time-delta weighting assigns each sample a weight proportional to elapsed time, not a uniform count. When methods are extremely short, the time delta between samples is dominated by profiler overhead and scheduling jitter rather than actual method execution time. This introduces noise into the per-method weights that doesn't average out as cleanly as uniform counting.
+**sprof improves but remains moderate (53% -> 22% cpu, 43% -> 25% wall).** sprof's time-delta weighting should converge to the correct ratios given enough samples, since the total accumulated time for each method is proportional to its call count (all calls take the same time). However, at 10kHz the per-sample time delta is very small (~0.1ms), and profiler overhead and scheduling jitter add noise to these tiny deltas. This noise doesn't cancel out as cleanly as uniform counting where each sample contributes exactly 1.
 
 **pf2 does not improve at 10kHz (87% -> 97% cpu, 43% -> 49% wall).** The native stack inclusion and cumulative-only accounting continue to distort method-level attribution regardless of frequency.
 
 ### Interpretation
 
-This test reveals a fundamental trade-off in profiler design:
+This scenario is challenging for all profilers because the total runtime (~50ms) is very short relative to the sampling interval. The accuracy is fundamentally limited by sample count, not by the profiling mechanism.
 
-- **Time-delta weighting** (sprof) excels at answering "**how much time** did each method consume?" -- even with few samples, each sample carries the correct time weight.
-- **Uniform sample counting** (stackprof, vernier) excels at answering "**how often** was each method active?" -- given enough samples, the count ratio converges to the true frequency ratio.
-
-For real-world profiling, the time question is almost always more useful: a method called 1000 times at 1us each (1ms total) is less interesting than a method called once at 1000ms. sprof's time-delta approach correctly ranks the latter as 1000x more important, while a uniform counter might show the former as dominant if it happens to be running during more sample points.
-
-The ratio test is a deliberately adversarial scenario for time-delta profilers: all methods consume the same negligible time, so there is no meaningful time difference to measure. The only distinguishing signal is call frequency, which favors sample-counting profilers.
+For sprof specifically, the remaining gap versus uniform-counting profilers at 10kHz (25% vs 6.5%) is due to noise in the time deltas. With sufficiently high frequency or longer total runtime, sprof's ratios should converge as well -- the accumulated time per method is proportional to call count when per-call time is uniform. This is not a fundamental limitation of time-delta weighting, but a practical one in low-sample-count regimes where the delta noise is significant relative to the signal.

@@ -200,7 +200,7 @@ $ ruby check_accuracy.rb -f scenarios_ratio.json -P sprof -m cpu -F 10000 0
 --- Scenario #0     FAIL (avg error: 21.9%) ---
 ```
 
-Uniform-weight profilers (vernier, stackprof) excel here because sample counts directly reflect call frequency. sprof's time-delta weighting introduces noise when per-call time is negligible. This is a deliberate trade-off: sprof is optimized for "how much time did each method consume?" rather than "how often was each method called?"
+Uniform-weight profilers (vernier, stackprof) perform better here because tiny time deltas are noisy, while uniform counting (1 sample = 1 count) averages out cleanly. This is not a fundamental limitation of time-delta weighting -- with enough samples or longer runtime, sprof's ratios should converge as well, since accumulated time is proportional to call count when per-call time is uniform.
 
 See `report.md` for detailed results and analysis.
 
