@@ -134,45 +134,77 @@ def expand_calls(scenario)
   end
 end
 
+def generate_script_baseline(calls)
+  script = +<<~RUBY
+    $LOAD_PATH.unshift(File.join(__dir__, "..", "lib"))
+    $LOAD_PATH.unshift(File.join(__dir__, "lib"))
+    require "sprof_workload_methods"
+    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+  RUBY
+  calls.each { |name, usec| script << "SprofWorkload.#{name}(#{usec})\n" }
+  script << <<~RUBY
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+    puts "elapsed_ms=\#{(elapsed * 1000).round(1)}"
+  RUBY
+  script
+end
+
 def generate_script_sprof(calls, output_path, profiling_mode, freq)
-  script = <<~RUBY
+  script = +<<~RUBY
     $LOAD_PATH.unshift(File.join(__dir__, "..", "lib"))
     $LOAD_PATH.unshift(File.join(__dir__, "lib"))
     require "sprof"
     require "sprof_workload_methods"
+    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     Sprof.start(frequency: #{freq}, mode: :#{profiling_mode})
   RUBY
   calls.each { |name, usec| script << "SprofWorkload.#{name}(#{usec})\n" }
-  script << "Sprof.save(#{output_path.inspect})\n"
+  script << <<~RUBY
+    data = Sprof.stop
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+    puts "elapsed_ms=\#{(elapsed * 1000).round(1)}"
+    puts "sampling_count=\#{data[:sampling_count]}"
+    puts "sampling_time_ns=\#{data[:sampling_time_ns]}"
+    encoded = Sprof::PProf.encode(data)
+    File.binwrite(#{output_path.inspect}, Sprof.gzip(encoded))
+  RUBY
   script
 end
 
 def generate_script_stackprof(calls, output_path, profiling_mode, freq)
   mode = profiling_mode == :wall ? :wall : :cpu
   interval_us = 1_000_000 / freq
-  script = <<~RUBY
+  script = +<<~RUBY
     $LOAD_PATH.unshift(File.join(__dir__, "lib"))
     require "stackprof"
     require "sprof_workload_methods"
+    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     StackProf.run(mode: :#{mode}, interval: #{interval_us}, raw: true, out: #{output_path.inspect}) do
   RUBY
   calls.each { |name, usec| script << "  SprofWorkload.#{name}(#{usec})\n" }
-  script << "end\n"
+  script << <<~RUBY
+    end
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+    puts "elapsed_ms=\#{(elapsed * 1000).round(1)}"
+  RUBY
   script
 end
 
 def generate_script_vernier(calls, output_path, profiling_mode, freq)
   mode = profiling_mode == :wall ? :wall : :retained
   interval_us = 1_000_000 / freq
-  script = <<~RUBY
+  script = +<<~RUBY
     $LOAD_PATH.unshift(File.join(__dir__, "lib"))
     require "vernier"
     require "sprof_workload_methods"
+    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     result = Vernier.trace(mode: :#{mode}, interval: #{interval_us}) do
   RUBY
   calls.each { |name, usec| script << "  SprofWorkload.#{name}(#{usec})\n" }
   script << <<~RUBY
     end
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+    puts "elapsed_ms=\#{(elapsed * 1000).round(1)}"
     result.write(out: #{output_path.inspect})
   RUBY
   script
@@ -181,14 +213,19 @@ end
 def generate_script_pf2(calls, output_path, profiling_mode, freq)
   time_mode = profiling_mode == :wall ? :wall : :cpu
   interval_ms = [1, 1000 / freq].max
-  script = <<~RUBY
+  script = +<<~RUBY
     $LOAD_PATH.unshift(File.join(__dir__, "lib"))
     require "pf2"
     require "sprof_workload_methods"
+    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     Pf2.profile(out: #{output_path.inspect}, format: :pprof, time_mode: :#{time_mode}, interval_ms: #{interval_ms}) do
   RUBY
   calls.each { |name, usec| script << "  SprofWorkload.#{name}(#{usec})\n" }
-  script << "end\n"
+  script << <<~RUBY
+    end
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+    puts "elapsed_ms=\#{(elapsed * 1000).round(1)}"
+  RUBY
   script
 end
 
@@ -328,6 +365,18 @@ selected.each do |scenario|
                end
   output_path = File.join(__dir__, "output_#{scenario_id}#{output_ext}")
 
+  # Run baseline (no profiler) if verbose
+  if verbose
+    baseline_script = generate_script_baseline(calls)
+    baseline_path = File.join(__dir__, "_baseline_#{scenario_id}.rb")
+    File.write(baseline_path, baseline_script)
+    bl_stdout, _, bl_status = Open3.capture3(RbConfig.ruby, baseline_path)
+    File.delete(baseline_path) if File.exist?(baseline_path)
+    if bl_status.success? && bl_stdout =~ /elapsed_ms=([\d.]+)/
+      puts format("  baseline (no profiler): %.1fms", $1.to_f)
+    end
+  end
+
   # Generate test script
   script = case profiler
            when "sprof"    then generate_script_sprof(calls, output_path, profiling_mode, frequency)
@@ -342,13 +391,32 @@ selected.each do |scenario|
 
   # Execute
   ruby_bin = RbConfig.ruby
-  _stdout, stderr, status = Open3.capture3(ruby_bin, script_path)
+  stdout, stderr, status = Open3.capture3(ruby_bin, script_path)
 
   unless status.success?
     $stderr.puts "Scenario ##{scenario_id}: script failed: #{stderr}"
     failures << scenario_id
     File.delete(script_path) if File.exist?(script_path)
     next
+  end
+
+  # Parse stats from stdout
+  stats = {}
+  stdout.each_line do |line|
+    if line.strip =~ /\A(\w+)=([\d.]+)\z/
+      stats[$1] = $2
+    end
+  end
+
+  if verbose
+    elapsed = stats["elapsed_ms"]
+    puts format("  elapsed: %sms", elapsed) if elapsed
+    if stats["sampling_count"]
+      sc = stats["sampling_count"].to_i
+      st_ns = stats["sampling_time_ns"].to_i
+      avg_us = sc > 0 ? st_ns / sc / 1000.0 : 0
+      puts format("  sampling: %d calls, %.2fms total, %.1fus/call avg", sc, st_ns / 1_000_000.0, avg_us)
+    end
   end
 
   # Parse results
