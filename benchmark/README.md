@@ -36,11 +36,12 @@ ruby generate_scenarios.rb -p cw -n 3             # cw only
 ruby generate_scenarios.rb -p csleep -n 3         # csleep only
 ruby generate_scenarios.rb -p cwait -n 3          # cwait only
 ruby generate_scenarios.rb -p mixed -n 10         # all types mixed
+ruby generate_scenarios.rb -p ratio -n 3          # call-ratio scenarios
 ruby generate_scenarios.rb -s 12345               # custom seed
 ruby generate_scenarios.rb -o my_scenarios.json   # custom output filename
 ```
 
-Generated JSON structure:
+#### Time-accuracy scenarios (rw, cw, csleep, cwait, mixed)
 
 ```json
 {
@@ -55,6 +56,22 @@ Generated JSON structure:
 - `expected_*_ms` values are summed across duplicate calls to the same method
 - Fixed seed ensures reproducibility
 
+#### Ratio scenarios
+
+10 randomly selected `rw` methods are called with argument 0 (immediate return), totaling 100,000 calls distributed in random proportions. Each call takes ~0.5us, so the signal is purely statistical.
+
+```json
+{
+  "id": 0,
+  "type": "ratio",
+  "call_counts": { "rw953": 17100, "rw650": 15368, ... },
+  "expected_ratio": { "rw953": 0.171, "rw650": 0.1537, ... }
+}
+```
+
+- The checker converts profiler output values to ratios and compares against `expected_ratio`
+- This tests whether the profiler correctly reflects **relative call frequency** rather than absolute time
+
 ### check_accuracy.rb -- Accuracy Runner
 
 Runs scenarios and compares profiler output against expected values, reporting PASS/FAIL.
@@ -64,27 +81,36 @@ ruby check_accuracy.rb                                    # sprof, scenarios_mix
 ruby check_accuracy.rb -f scenarios_rw.json               # specify scenario file
 ruby check_accuracy.rb -m wall                            # wall mode
 ruby check_accuracy.rb -m cpu -t 5                        # set tolerance to 5%
+ruby check_accuracy.rb -F 10000                           # sampling frequency 10kHz
 ruby check_accuracy.rb -l                                 # run under CPU load
 ruby check_accuracy.rb -P stackprof -m cpu                # use stackprof
 ruby check_accuracy.rb -P vernier -m wall                 # use vernier
 ruby check_accuracy.rb -P pf2 -m wall                    # use pf2
+ruby check_accuracy.rb -v                                 # verbose: show per-method detail and raw output
+ruby check_accuracy.rb -f scenarios_ratio.json            # call-ratio test
 ruby check_accuracy.rb -f scenarios_rw.json -m wall -l    # combined options
 ruby check_accuracy.rb 0                                  # scenario #0 only
 ruby check_accuracy.rb 0-4                                # scenarios #0 through #4
+ruby check_accuracy.rb --help                             # show all options
 ```
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `-f FILE` | `scenarios_mixed.json` | Scenario file |
-| `-m MODE` | `cpu` | Profiling mode (`cpu` / `wall`) |
-| `-t PCT`  | `20` | Pass tolerance (%) |
-| `-l`      | off | Spawn CPU-hogging processes on all cores |
-| `-P PROF` | `sprof` | Profiler (`sprof` / `stackprof` / `vernier` / `pf2`) |
+| `-f, --file FILE` | `scenarios_mixed.json` | Scenario file |
+| `-m, --mode MODE` | `cpu` | Profiling mode (`cpu` / `wall`) |
+| `-t, --tolerance PCT` | `20` | Pass tolerance (%) |
+| `-F, --frequency HZ` | `1000` | Sampling frequency in Hz |
+| `-P, --profiler NAME` | `sprof` | Profiler (`sprof` / `stackprof` / `vernier` / `pf2`) |
+| `-l, --load` | off | Spawn CPU-hogging processes on all cores |
+| `-v, --verbose` | off | Show per-method detail and raw profiler output for all scenarios |
+| `-h, --help` | | Show help |
 
 How it works:
 1. Generates a profiler-specific temporary script for each scenario and executes it with `ruby`
 2. Parses the output using the appropriate method (sprof/pf2: `go tool pprof`, stackprof: `stackprof --text`, vernier: Firefox Profiler JSON)
-3. Compares actual vs expected per method; PASS if average error is within tolerance
+3. For time-accuracy scenarios: compares actual vs expected time per method
+4. For ratio scenarios: converts profiler output to ratios and compares against expected call-frequency ratios
+5. PASS if average error is within tolerance
 
 ## Included Scenario Files
 
@@ -95,6 +121,7 @@ How it works:
 | `scenarios_csleep.json` | nanosleep (GVL held) only | 3 |
 | `scenarios_cwait.json` | nanosleep (GVL released) only | 3 |
 | `scenarios_mixed.json` | All types mixed | 10 |
+| `scenarios_ratio.json` | Call-ratio (10 methods, 100k calls, arg 0) | 3 |
 
 ## Expected Results
 
@@ -160,6 +187,22 @@ With rw-only scenarios, vernier wall mode achieves good accuracy:
 $ ruby check_accuracy.rb -P vernier -m wall -f scenarios_rw.json 0
 Scenario #0     PASS (1.5%)
 ```
+
+### Call-Ratio Test
+
+Tests whether profilers correctly reflect relative call frequency (not absolute time). 10 `rw` methods called 100k times total with arg 0.
+
+```
+$ ruby check_accuracy.rb -f scenarios_ratio.json -P vernier -m wall -F 10000 0
+Scenario #0     PASS (6.5%)
+
+$ ruby check_accuracy.rb -f scenarios_ratio.json -P sprof -m cpu -F 10000 0
+--- Scenario #0     FAIL (avg error: 21.9%) ---
+```
+
+Uniform-weight profilers (vernier, stackprof) excel here because sample counts directly reflect call frequency. sprof's time-delta weighting introduces noise when per-call time is negligible. This is a deliberate trade-off: sprof is optimized for "how much time did each method consume?" rather than "how often was each method called?"
+
+See `report.md` for detailed results and analysis.
 
 ## Prerequisites
 
