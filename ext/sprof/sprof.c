@@ -19,6 +19,14 @@ enum sprof_sample_type {
     SPROF_SAMPLE_NORMAL      = 0,
     SPROF_SAMPLE_GVL_BLOCKED = 1,  /* off-GVL: SUSPENDED → READY */
     SPROF_SAMPLE_GVL_WAIT    = 2,  /* GVL wait: READY → RESUMED */
+    SPROF_SAMPLE_GC_MARKING  = 3,  /* GC marking phase */
+    SPROF_SAMPLE_GC_SWEEPING = 4,  /* GC sweeping phase */
+};
+
+enum sprof_gc_phase {
+    SPROF_GC_NONE     = 0,
+    SPROF_GC_MARKING  = 1,
+    SPROF_GC_SWEEPING = 2,
 };
 
 typedef struct sprof_sample {
@@ -53,6 +61,11 @@ typedef struct sprof_profiler {
     size_t frame_pool_capacity;
     rb_internal_thread_specific_key_t ts_key;
     rb_internal_thread_event_hook_t *thread_hook;
+    /* GC tracking */
+    int gc_phase;                /* sprof_gc_phase */
+    int64_t gc_enter_ns;         /* wall time at GC_ENTER */
+    size_t gc_frame_start;       /* saved stack at GC_ENTER */
+    int gc_frame_depth;          /* saved stack depth */
     /* Sampling overhead stats */
     size_t sampling_count;
     int64_t sampling_total_ns;
@@ -302,6 +315,55 @@ sprof_thread_event_hook(rb_event_flag_t event, const rb_internal_thread_event_da
         sprof_handle_exited(prof, thread);
 }
 
+/* ---- GC event hook ---- */
+
+static void
+sprof_gc_event_hook(rb_event_flag_t event, VALUE data, VALUE self, ID id, VALUE klass)
+{
+    sprof_profiler_t *prof = &g_profiler;
+    if (!prof->running) return;
+
+    if (event & RUBY_INTERNAL_EVENT_GC_START) {
+        prof->gc_phase = SPROF_GC_MARKING;
+    }
+    else if (event & RUBY_INTERNAL_EVENT_GC_END_MARK) {
+        prof->gc_phase = SPROF_GC_SWEEPING;
+    }
+    else if (event & RUBY_INTERNAL_EVENT_GC_END_SWEEP) {
+        prof->gc_phase = SPROF_GC_NONE;
+    }
+    else if (event & RUBY_INTERNAL_EVENT_GC_ENTER) {
+        /* Capture backtrace and timestamp at GC entry */
+        prof->gc_enter_ns = sprof_wall_time_ns();
+
+        if (sprof_ensure_frame_pool_capacity(prof, SPROF_MAX_STACK_DEPTH) < 0) return;
+        size_t frame_start = prof->frame_pool_count;
+        VALUE thread = rb_thread_current();
+        int depth = rb_profile_thread_frames(thread, 0, SPROF_MAX_STACK_DEPTH,
+                                             &prof->frame_pool[frame_start], NULL);
+        if (depth <= 0) {
+            prof->gc_frame_depth = 0;
+            return;
+        }
+        prof->frame_pool_count += depth;
+        prof->gc_frame_start = frame_start;
+        prof->gc_frame_depth = depth;
+    }
+    else if (event & RUBY_INTERNAL_EVENT_GC_EXIT) {
+        if (prof->gc_frame_depth <= 0) return;
+
+        int64_t wall_now = sprof_wall_time_ns();
+        int64_t weight = wall_now - prof->gc_enter_ns;
+        int type = (prof->gc_phase == SPROF_GC_SWEEPING)
+                   ? SPROF_SAMPLE_GC_SWEEPING
+                   : SPROF_SAMPLE_GC_MARKING;
+
+        sprof_record_sample(prof, prof->gc_frame_start,
+                            prof->gc_frame_depth, weight, type);
+        prof->gc_frame_depth = 0;
+    }
+}
+
 /* ---- Sampling callback (postponed job) — current thread only ---- */
 
 static void
@@ -442,6 +504,17 @@ rb_sprof_start(int argc, VALUE *argv, VALUE self)
         rb_raise(rb_eNoMemError, "sprof: failed to allocate frame pool");
     }
 
+    /* Register GC event hook */
+    g_profiler.gc_phase = SPROF_GC_NONE;
+    g_profiler.gc_frame_depth = 0;
+    rb_add_event_hook(sprof_gc_event_hook,
+                      RUBY_INTERNAL_EVENT_GC_START |
+                      RUBY_INTERNAL_EVENT_GC_END_MARK |
+                      RUBY_INTERNAL_EVENT_GC_END_SWEEP |
+                      RUBY_INTERNAL_EVENT_GC_ENTER |
+                      RUBY_INTERNAL_EVENT_GC_EXIT,
+                      Qnil);
+
     /* Register thread event hook for all events */
     g_profiler.thread_hook = rb_internal_thread_add_event_hook(
         sprof_thread_event_hook,
@@ -509,6 +582,9 @@ rb_sprof_stop(VALUE self)
         g_profiler.thread_hook = NULL;
     }
 
+    /* Remove GC event hook */
+    rb_remove_event_hook(sprof_gc_event_hook);
+
     /* Clean up thread-specific data for all live threads */
     {
         VALUE threads = rb_funcall(rb_cThread, rb_intern("list"), 0);
@@ -546,12 +622,18 @@ rb_sprof_stop(VALUE self)
         sprof_sample_t *s = &g_profiler.samples[i];
         VALUE frames = rb_ary_new_capa(s->depth + 1);
 
-        /* Prepend synthetic frame at leaf position (index 0) for GVL samples */
+        /* Prepend synthetic frame at leaf position (index 0) */
         if (s->type == SPROF_SAMPLE_GVL_BLOCKED) {
             VALUE syn = rb_ary_new3(2, rb_str_new_lit("<GVL>"), rb_str_new_lit("[GVL blocked]"));
             rb_ary_push(frames, syn);
         } else if (s->type == SPROF_SAMPLE_GVL_WAIT) {
             VALUE syn = rb_ary_new3(2, rb_str_new_lit("<GVL>"), rb_str_new_lit("[GVL wait]"));
+            rb_ary_push(frames, syn);
+        } else if (s->type == SPROF_SAMPLE_GC_MARKING) {
+            VALUE syn = rb_ary_new3(2, rb_str_new_lit("<GC>"), rb_str_new_lit("[GC marking]"));
+            rb_ary_push(frames, syn);
+        } else if (s->type == SPROF_SAMPLE_GC_SWEEPING) {
+            VALUE syn = rb_ary_new3(2, rb_str_new_lit("<GC>"), rb_str_new_lit("[GC sweeping]"));
             rb_ary_push(frames, syn);
         }
 
@@ -581,8 +663,8 @@ void
 Init_sprof(void)
 {
     VALUE mSprof = rb_define_module("Sprof");
-    rb_define_module_function(mSprof, "start", rb_sprof_start, -1);
-    rb_define_module_function(mSprof, "stop", rb_sprof_stop, 0);
+    rb_define_module_function(mSprof, "_c_start", rb_sprof_start, -1);
+    rb_define_module_function(mSprof, "_c_stop", rb_sprof_stop, 0);
 
     memset(&g_profiler, 0, sizeof(g_profiler));
     g_profiler.pj_handle = rb_postponed_job_preregister(0, sprof_sample_job, &g_profiler);

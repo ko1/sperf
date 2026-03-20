@@ -6,32 +6,40 @@ module Sprof
   VERSION = "0.1.0"
 
   @verbose = false
+  @output = nil
 
-  def self.save(path)
-    data = stop
+  def self.start(frequency: 100, mode: :cpu, output: nil, verbose: false)
+    @verbose = verbose || ENV["SPROF_VERBOSE"] == "1"
+    @output = output
+    _c_start(frequency: frequency, mode: mode)
+
+    if block_given?
+      begin
+        yield
+      ensure
+        return stop
+      end
+    end
+  end
+
+  def self.stop
+    data = _c_stop
     return unless data
 
     print_stats(data) if @verbose
 
+    if @output
+      encoded = PProf.encode(data)
+      File.binwrite(@output, gzip(encoded))
+      @output = nil
+    end
+
+    data
+  end
+
+  def self.save(path, data)
     encoded = PProf.encode(data)
     File.binwrite(path, gzip(encoded))
-  end
-
-  def self.profile(output: "sprof.data", frequency: 100, mode: :cpu, verbose: false)
-    start(frequency: frequency, mode: mode, verbose: verbose)
-    yield
-  ensure
-    save(output)
-  end
-
-  # Wrap C start to capture verbose flag
-  class << self
-    alias_method :_start, :start
-
-    def start(frequency: 100, mode: :cpu, verbose: false)
-      @verbose = verbose || ENV["SPROF_VERBOSE"] == "1"
-      _start(frequency: frequency, mode: mode)
-    end
   end
 
   def self.gzip(data)
@@ -114,8 +122,9 @@ module Sprof
     end
     _sprof_mode = _sprof_mode_str == "wall" ? :wall : :cpu
     start(frequency: (ENV["SPROF_FREQUENCY"] || 100).to_i, mode: _sprof_mode,
+          output: ENV["SPROF_OUTPUT"] || "sprof.data",
           verbose: ENV["SPROF_VERBOSE"] == "1")
-    at_exit { save(ENV["SPROF_OUTPUT"] || "sprof.data") }
+    at_exit { stop }
   end
 
   # Hand-written protobuf encoder for pprof profile format.

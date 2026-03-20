@@ -41,7 +41,7 @@ class TestSprof < Test::Unit::TestCase
   def test_profile_block
     Dir.mktmpdir do |dir|
       path = File.join(dir, "test.data")
-      Sprof.profile(output: path, frequency: 500) do
+      Sprof.start(output: path, frequency: 500) do
         5_000_000.times { 1 + 1 }
       end
 
@@ -340,7 +340,7 @@ class TestSprof < Test::Unit::TestCase
   def test_pprof_output
     Dir.mktmpdir do |dir|
       path = File.join(dir, "test.pb.gz")
-      Sprof.profile(output: path, frequency: 500) do
+      Sprof.start(output: path, frequency: 500) do
         5_000_000.times { 1 + 1 }
       end
 
