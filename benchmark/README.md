@@ -27,19 +27,25 @@ Different numbers appear as distinct functions in profiler output, allowing per-
 
 ### generate_scenarios.rb -- Scenario Generator
 
-Generates random workload call sequences and their expected values as JSON.
+Generates random workload call sequences, their expected values as JSON, and executable scripts in `scripts/`.
 
 ```bash
 ruby generate_scenarios.rb                        # mixed (rw/cw/csleep/cwait), 10 scenarios
 ruby generate_scenarios.rb -p rw -n 10            # rw only
-ruby generate_scenarios.rb -p cw -n 3             # cw only
-ruby generate_scenarios.rb -p csleep -n 3         # csleep only
-ruby generate_scenarios.rb -p cwait -n 3          # cwait only
+ruby generate_scenarios.rb -p cw -n 10            # cw only
+ruby generate_scenarios.rb -p csleep -n 10         # csleep only
+ruby generate_scenarios.rb -p cwait -n 10          # cwait only
 ruby generate_scenarios.rb -p mixed -n 10         # all types mixed
-ruby generate_scenarios.rb -p ratio -n 3          # call-ratio scenarios
+ruby generate_scenarios.rb -p ratio -n 10          # call-ratio scenarios
 ruby generate_scenarios.rb -s 12345               # custom seed
 ruby generate_scenarios.rb -o my_scenarios.json   # custom output filename
 ```
+
+Each invocation produces:
+- A JSON scenario file (e.g., `scenarios_rw.json`) with expected values
+- Executable Ruby scripts in `scripts/` (e.g., `scripts/rw_0.rb` through `scripts/rw_9.rb`)
+
+The scripts in `scripts/` are `.gitignore`d and regenerated from the JSON files.
 
 #### Time-accuracy scenarios (rw, cw, csleep, cwait, mixed)
 
@@ -58,7 +64,7 @@ ruby generate_scenarios.rb -o my_scenarios.json   # custom output filename
 
 #### Ratio scenarios
 
-10 randomly selected `rw` methods are called with argument 0 (immediate return), totaling 100,000 calls distributed in random proportions. Each call takes ~0.5us, so the signal is purely statistical.
+10 randomly selected `rw` methods are called with argument 0 (immediate return), totaling 4,000,000 calls distributed in random proportions. Each call takes ~0.5us, so the signal is purely statistical.
 
 ```json
 {
@@ -72,9 +78,36 @@ ruby generate_scenarios.rb -o my_scenarios.json   # custom output filename
 - The checker converts profiler output values to ratios and compares against `expected_ratio`
 - This tests whether the profiler correctly reflects **relative call frequency** rather than absolute time
 
+### profrun.rb -- Profiler Runner
+
+Runs a workload script under a specified profiler and outputs stats to stdout. Used by `check_accuracy.rb` internally, and can be used directly for overhead measurement.
+
+```bash
+ruby profrun.rb [options] SCRIPT
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-P, --profiler NAME` | `sperf` | Profiler: `sperf`, `stackprof`, `vernier`, `pf2`, `none` |
+| `-m, --mode MODE` | `cpu` | Profiling mode: `cpu` or `wall` |
+| `-F, --frequency HZ` | `1000` | Sampling frequency in Hz |
+| `-o, --output FILE` | (none) | Profiler output file path |
+
+Output to stdout (key=value format):
+- `elapsed_ms=<time>` — total elapsed time (all profilers)
+- `sampling_count=<count>` — number of sampling callbacks (sperf only)
+- `sampling_time_ns=<ns>` — total time spent in sampling callbacks (sperf only)
+
+Examples:
+```bash
+ruby profrun.rb scripts/rw_0.rb                           # sperf, cpu, 1000Hz, no output
+ruby profrun.rb -P stackprof -m wall -o out.dump scripts/rw_0.rb  # stackprof, wall, save output
+ruby profrun.rb -P none scripts/ratio_1.rb                # baseline (no profiler)
+```
+
 ### check_accuracy.rb -- Accuracy Runner
 
-Runs scenarios and compares profiler output against expected values, reporting PASS/FAIL.
+Runs scenarios via `profrun.rb` and compares profiler output against expected values, reporting PASS/FAIL.
 
 ```bash
 ruby check_accuracy.rb                                    # sperf, scenarios_mixed.json, cpu mode
@@ -106,22 +139,23 @@ ruby check_accuracy.rb --help                             # show all options
 | `-h, --help` | | Show help |
 
 How it works:
-1. Generates a profiler-specific temporary script for each scenario and executes it with `ruby`
-2. Parses the output using the appropriate method (sperf/pf2: `go tool pprof`, stackprof: `stackprof --text`, vernier: Firefox Profiler JSON)
-3. For time-accuracy scenarios: compares actual vs expected time per method
-4. For ratio scenarios: converts profiler output to ratios and compares against expected call-frequency ratios
-5. PASS if average error is within tolerance
+1. Resolves the workload script from `scripts/` (e.g., `scripts/mixed_0.rb` for `scenarios_mixed.json` scenario #0)
+2. Executes the script via `profrun.rb` with the specified profiler, mode, and frequency
+3. Parses the output using the appropriate method (sperf/pf2: `go tool pprof`, stackprof: `stackprof --text`, vernier: Firefox Profiler JSON)
+4. For time-accuracy scenarios: compares actual vs expected time per method
+5. For ratio scenarios: converts profiler output to ratios and compares against expected call-frequency ratios
+6. PASS if average error is within tolerance
 
 ## Included Scenario Files
 
 | File | Contents | Count |
 |------|----------|-------|
 | `scenarios_rw.json` | Ruby busy-wait only | 10 |
-| `scenarios_cw.json` | C busy-wait only | 3 |
-| `scenarios_csleep.json` | nanosleep (GVL held) only | 3 |
-| `scenarios_cwait.json` | nanosleep (GVL released) only | 3 |
+| `scenarios_cw.json` | C busy-wait only | 10 |
+| `scenarios_csleep.json` | nanosleep (GVL held) only | 10 |
+| `scenarios_cwait.json` | nanosleep (GVL released) only | 10 |
 | `scenarios_mixed.json` | All types mixed | 10 |
-| `scenarios_ratio.json` | Call-ratio (10 methods, 100k calls, arg 0) | 3 |
+| `scenarios_ratio.json` | Call-ratio (10 methods, 4M calls, arg 0) | 10 |
 
 ## Expected Results
 
@@ -177,7 +211,7 @@ Accuracy on mixed scenario #0 (tolerance 20%):
 
 Profiler characteristics:
 
-- **stackprof**: Sampling occurs at the Ruby frame level, so it largely misses loops inside C functions (`cw`). High miss rate (~60%).
+- **stackprof**: Signal-based (not safepoint-based), uniform sample count. Misses loops inside C functions (`cw`) because signals are deferred until the next safepoint.
 - **vernier**: Accurate for rw/cw/cwait in wall mode (1-3% error), but cannot measure GVL-held sleep (`csleep`). No cpu-time mode (`:retained` is used as a substitute but serves a different purpose).
 - **pf2**: pprof output shows flat=0 for all frames, reporting only cumulative values that include the native stack. Values tend to be inflated.
 
@@ -190,7 +224,7 @@ Scenario #0     PASS (1.5%)
 
 ### Call-Ratio Test
 
-Tests whether profilers correctly reflect relative call frequency (not absolute time). 10 `rw` methods called 100k times total with arg 0.
+Tests whether profilers correctly reflect relative call frequency (not absolute time). 10 `rw` methods called 4M times total with arg 0.
 
 ```
 $ ruby check_accuracy.rb -f scenarios_ratio.json -P vernier -m wall -F 10000 0
