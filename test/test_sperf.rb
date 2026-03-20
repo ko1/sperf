@@ -575,6 +575,42 @@ class TestSperf < Test::Unit::TestCase
     end
   end
 
+  # --- Fork safety tests ---
+
+  def test_fork_stops_profiling_in_child
+    Sperf.start(frequency: 100)
+
+    rd, wr = IO.pipe
+    pid = fork do
+      rd.close
+      # In child: profiling should be silently stopped
+      result = Sperf.stop
+      wr.puts(result.nil? ? "nil" : "not_nil")
+
+      # Should be able to start a new session in child
+      Sperf.start(frequency: 100)
+      1_000_000.times { 1 + 1 }
+      data = Sperf.stop
+      wr.puts(data.nil? ? "no_data" : "has_data")
+      wr.close
+    end
+
+    wr.close
+    lines = rd.read.split("\n")
+    rd.close
+    _, status = Process.waitpid2(pid)
+
+    assert status.success?, "Child process should exit successfully"
+    assert_equal "nil", lines[0], "Sperf.stop in child should return nil"
+    assert_equal "has_data", lines[1], "New profiling session in child should work"
+
+    # Parent profiling should continue normally
+    1_000_000.times { 1 + 1 }
+    data = Sperf.stop
+    assert_not_nil data, "Parent profiling should still work after fork"
+    assert_operator data[:samples].size, :>, 0
+  end
+
   private
 
   def deep_recurse(depth, &block)

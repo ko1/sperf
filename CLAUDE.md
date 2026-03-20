@@ -56,6 +56,7 @@ See `benchmark/README.md` for full documentation.
 - **Deferred string resolution**: Sampling stores raw frame VALUEs in a pool. String resolution (`rb_profile_frame_full_label`, `rb_profile_frame_path`) happens at stop time, not during sampling. This keeps the hot path allocation-free.
 - **No protobuf dependency**: pprof format is encoded with a hand-written encoder in `lib/sperf.rb` (`Sperf::PProf.encode`). String table is built in Ruby at encode time.
 - **Multiple output formats**: pprof (gzip protobuf), collapsed stacks (FlameGraph/speedscope), text (human/AI-readable report). Format auto-detected from file extension.
+- **Fork safety**: `pthread_atfork` child handler silently stops profiling in the child process. Clears timer thread state, removes event hooks, and frees sample/frame buffers. The child can start a fresh profiling session; the parent continues unaffected.
 - **Two clock modes**: cpu (`CLOCK_THREAD_CPUTIME_ID`) and wall (`CLOCK_MONOTONIC`).
 - **Method-level profiling**: No line numbers. Frame labels use `rb_profile_frame_full_label` for qualified names (e.g., `Integer#times`).
 

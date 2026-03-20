@@ -652,6 +652,42 @@ rb_sperf_stop(VALUE self)
     return result;
 }
 
+/* ---- Fork safety ---- */
+
+static void
+sperf_after_fork_child(void)
+{
+    if (!g_profiler.running) return;
+
+    /* Mark as not running — timer thread doesn't exist in child */
+    g_profiler.running = 0;
+
+    /* Remove hooks so they don't fire with stale state */
+    if (g_profiler.thread_hook) {
+        rb_internal_thread_remove_event_hook(g_profiler.thread_hook);
+        g_profiler.thread_hook = NULL;
+    }
+    rb_remove_event_hook(sperf_gc_event_hook);
+
+    /* Free sample buffer and frame pool — these hold parent's data */
+    free(g_profiler.samples);
+    g_profiler.samples = NULL;
+    g_profiler.sample_count = 0;
+    g_profiler.sample_capacity = 0;
+
+    free(g_profiler.frame_pool);
+    g_profiler.frame_pool = NULL;
+    g_profiler.frame_pool_count = 0;
+    g_profiler.frame_pool_capacity = 0;
+
+    /* Reset GC state */
+    g_profiler.gc_phase = 0;
+
+    /* Reset stats */
+    g_profiler.sampling_count = 0;
+    g_profiler.sampling_total_ns = 0;
+}
+
 /* ---- Init ---- */
 
 void
@@ -668,4 +704,7 @@ Init_sperf(void)
     /* TypedData wrapper for GC marking of frame_pool */
     g_profiler_wrapper = TypedData_Wrap_Struct(rb_cObject, &sperf_profiler_type, &g_profiler);
     rb_gc_register_address(&g_profiler_wrapper);
+
+    /* Fork safety: silently stop profiling in child process */
+    pthread_atfork(NULL, NULL, sperf_after_fork_child);
 }
