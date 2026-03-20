@@ -18,8 +18,8 @@ sperf stat ruby app.rb
 sperf record ruby app.rb                              # → sperf.data (pprof, cpu mode)
 sperf record -m wall -o profile.pb.gz ruby server.rb   # wall mode, custom output
 
-# View results
-sperf report                      # open sperf.data in browser (requires Go)
+# View results (report/diff require Go: https://go.dev/dl/)
+sperf report                      # open sperf.data in browser
 sperf report --top profile.pb.gz  # print top functions to terminal
 
 # Compare two profiles
@@ -60,7 +60,7 @@ Run `sperf help` for full documentation (all options, output interpretation, dia
 |---------|-------------|
 | `sperf record` | Profile a command and save to file |
 | `sperf stat` | Profile a command and print summary to stderr |
-| `sperf report` | Open pprof profile with `go tool pprof` |
+| `sperf report` | Open pprof profile with `go tool pprof` (requires Go) |
 | `sperf diff` | Compare two pprof profiles (requires Go) |
 | `sperf help` | Show full reference documentation |
 
