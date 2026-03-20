@@ -1,7 +1,6 @@
 #include <ruby.h>
 #include <ruby/debug.h>
 #include <ruby/thread.h>
-#include <ruby/internal/intern/thread.h>
 #include <pthread.h>
 #include <time.h>
 #include <string.h>
@@ -54,7 +53,7 @@ typedef struct sperf_profiler {
     sperf_sample_t *samples;
     size_t sample_count;
     size_t sample_capacity;
-    VALUE *frame_pool;       /* raw frame VALUEs from rb_profile_thread_frames */
+    VALUE *frame_pool;       /* raw frame VALUEs from rb_profile_frames */
     size_t frame_pool_count;
     size_t frame_pool_capacity;
     rb_internal_thread_specific_key_t ts_key;
@@ -214,8 +213,8 @@ sperf_handle_suspended(sperf_profiler_t *prof, VALUE thread)
     /* Capture backtrace into frame_pool */
     if (sperf_ensure_frame_pool_capacity(prof, SPERF_MAX_STACK_DEPTH) < 0) return;
     size_t frame_start = prof->frame_pool_count;
-    int depth = rb_profile_thread_frames(thread, 0, SPERF_MAX_STACK_DEPTH,
-                                         &prof->frame_pool[frame_start], NULL);
+    int depth = rb_profile_frames(0, SPERF_MAX_STACK_DEPTH,
+                                  &prof->frame_pool[frame_start], NULL);
     if (depth <= 0) return;
     prof->frame_pool_count += depth;
 
@@ -333,9 +332,8 @@ sperf_gc_event_hook(rb_event_flag_t event, VALUE data, VALUE self, ID id, VALUE 
 
         if (sperf_ensure_frame_pool_capacity(prof, SPERF_MAX_STACK_DEPTH) < 0) return;
         size_t frame_start = prof->frame_pool_count;
-        VALUE thread = rb_thread_current();
-        int depth = rb_profile_thread_frames(thread, 0, SPERF_MAX_STACK_DEPTH,
-                                             &prof->frame_pool[frame_start], NULL);
+        int depth = rb_profile_frames(0, SPERF_MAX_STACK_DEPTH,
+                                      &prof->frame_pool[frame_start], NULL);
         if (depth <= 0) {
             prof->gc_frame_depth = 0;
             return;
@@ -395,8 +393,8 @@ sperf_sample_job(void *arg)
     if (sperf_ensure_frame_pool_capacity(prof, SPERF_MAX_STACK_DEPTH) < 0) return;
 
     size_t frame_start = prof->frame_pool_count;
-    int depth = rb_profile_thread_frames(thread, 0, SPERF_MAX_STACK_DEPTH,
-                                         &prof->frame_pool[frame_start], NULL);
+    int depth = rb_profile_frames(0, SPERF_MAX_STACK_DEPTH,
+                                  &prof->frame_pool[frame_start], NULL);
     if (depth <= 0) return;
     prof->frame_pool_count += depth;
 
@@ -448,7 +446,7 @@ static VALUE
 rb_sperf_start(int argc, VALUE *argv, VALUE self)
 {
     VALUE opts;
-    int frequency = 100;
+    int frequency = 1000;
     int mode = 0; /* 0 = cpu, 1 = wall */
 
     rb_scan_args(argc, argv, ":", &opts);

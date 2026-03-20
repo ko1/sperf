@@ -19,7 +19,7 @@ CLI USAGE
 
   record: Profile and save to file.
     -o, --output PATH       Output file (default: sperf.data)
-    -f, --frequency HZ      Sampling frequency in Hz (default: 100)
+    -f, --frequency HZ      Sampling frequency in Hz (default: 1000)
     -m, --mode MODE         cpu or wall (default: cpu)
     --format FORMAT         pprof, collapsed, or text (default: auto from extension)
     -v, --verbose           Print sampling statistics to stderr
@@ -27,7 +27,7 @@ CLI USAGE
   stat: Run command and print performance summary to stderr.
     Always uses wall mode. No file output by default.
     -o, --output PATH       Also save profile to file (default: none)
-    -f, --frequency HZ      Sampling frequency in Hz (default: 100)
+    -f, --frequency HZ      Sampling frequency in Hz (default: 1000)
     -v, --verbose           Print additional sampling statistics
 
     Shows: user/sys/real time, time breakdown (CPU execution, GVL blocked,
@@ -77,7 +77,7 @@ RUBY API
   Sperf.save("profile.txt", data)
 
   Sperf.start parameters:
-    frequency:  Sampling frequency in Hz (Integer, default: 100)
+    frequency:  Sampling frequency in Hz (Integer, default: 1000)
     mode:       :cpu or :wall (Symbol, default: :cpu)
     output:     File path to write on stop (String or nil)
     verbose:    Print statistics to stderr (true/false, default: false)
@@ -233,8 +233,8 @@ ENVIRONMENT VARIABLES
 
 TIPS
 
-  - Use frequency 100-500 for general profiling; 1000 for short-lived code.
-  - Higher frequency = more samples = more overhead. 1000 Hz adds ~1-2%.
+  - Default frequency (1000 Hz) works well for most cases; overhead is < 0.2%.
+  - For long-running production profiling, lower frequency (100-500) reduces overhead further.
   - Profile representative workloads, not micro-benchmarks.
   - Compare cpu and wall profiles to distinguish CPU-bound from I/O-bound.
   - The verbose flag (-v) shows sampling overhead and top functions on stderr.
@@ -372,7 +372,7 @@ else
 end
 
 output = (subcommand == "stat") ? nil : "sperf.data"
-frequency = 100
+frequency = 1000
 mode = (subcommand == "stat") ? "wall" : "cpu"
 format = nil
 verbose = false
@@ -384,7 +384,7 @@ parser = OptionParser.new do |opts|
     output = v
   end
 
-  opts.on("-f", "--frequency HZ", Integer, "Sampling frequency in Hz (default: 100)") do |v|
+  opts.on("-f", "--frequency HZ", Integer, "Sampling frequency in Hz (default: 1000)") do |v|
     frequency = v
   end
 

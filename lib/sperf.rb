@@ -17,7 +17,7 @@ module Sperf
   #   .collapsed → collapsed stacks (FlameGraph / speedscope compatible)
   #   .txt       → text report (human/AI readable flat + cumulative table)
   #   otherwise (.pb.gz etc) → pprof protobuf (gzip compressed)
-  def self.start(frequency: 100, mode: :cpu, output: nil, verbose: false, format: nil, stat: false)
+  def self.start(frequency: 1000, mode: :cpu, output: nil, verbose: false, format: nil, stat: false)
     @verbose = verbose || ENV["SPERF_VERBOSE"] == "1"
     @output = output
     @format = format
@@ -281,7 +281,7 @@ module Sperf
     _sperf_mode = _sperf_mode_str == "wall" ? :wall : :cpu
     _sperf_format = ENV["SPERF_FORMAT"] ? ENV["SPERF_FORMAT"].to_sym : nil
     _sperf_stat = ENV["SPERF_STAT"] == "1"
-    start(frequency: (ENV["SPERF_FREQUENCY"] || 100).to_i, mode: _sperf_mode,
+    start(frequency: (ENV["SPERF_FREQUENCY"] || 1000).to_i, mode: _sperf_mode,
           output: _sperf_stat ? ENV["SPERF_OUTPUT"] : (ENV["SPERF_OUTPUT"] || "sperf.data"),
           verbose: ENV["SPERF_VERBOSE"] == "1",
           format: _sperf_format,
