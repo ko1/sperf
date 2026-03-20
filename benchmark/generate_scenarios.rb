@@ -122,3 +122,31 @@ end
 
 File.write(output_path, JSON.pretty_generate(scenarios))
 puts "Generated #{scenarios.size} #{prefix_type} scenarios to #{output_file}"
+
+# Generate workload scripts in scripts/
+scripts_dir = File.join(__dir__, "scripts")
+Dir.mkdir(scripts_dir) unless Dir.exist?(scripts_dir)
+
+scenarios.each do |scenario|
+  id = scenario["id"]
+  script_name = "#{prefix_type}_#{id}.rb"
+  script_path = File.join(scripts_dir, script_name)
+
+  if scenario["type"] == "ratio"
+    # Ratio scenario: use send + loop (too many calls to enumerate)
+    lines = []
+    lines << "srand(#{seed})"
+    lines << "call_counts = #{scenario["call_counts"].inspect}"
+    lines << "calls = []"
+    lines << 'call_counts.each { |name, count| count.times { calls << name } }'
+    lines << "calls.shuffle!"
+    lines << 'calls.each { |name| SperfWorkload.send(name, 0) }'
+    File.write(script_path, lines.join("\n") + "\n")
+  else
+    # Normal scenario: enumerate method calls directly
+    lines = scenario["calls"].map { |name, usec| "SperfWorkload.#{name}(#{usec})" }
+    File.write(script_path, lines.join("\n") + "\n")
+  end
+end
+
+puts "Generated #{scenarios.size} scripts to scripts/"

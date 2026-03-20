@@ -121,112 +121,14 @@ if cpu_load
   end
 end
 
-# --- Profiler-specific script generation ---
+# Runner script path
+PROFRUN = File.join(__dir__, "profrun.rb")
 
-def expand_calls(scenario)
-  if scenario["type"] == "ratio"
-    calls = []
-    scenario["call_counts"].each { |name, count| count.times { calls << [name, 0] } }
-    calls.shuffle!
-    calls
-  else
-    scenario["calls"]
-  end
-end
-
-def generate_script_baseline(calls)
-  script = +<<~RUBY
-    $LOAD_PATH.unshift(File.join(__dir__, "..", "lib"))
-    $LOAD_PATH.unshift(File.join(__dir__, "lib"))
-    require "sperf_workload_methods"
-    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-  RUBY
-  calls.each { |name, usec| script << "SperfWorkload.#{name}(#{usec})\n" }
-  script << <<~RUBY
-    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
-    puts "elapsed_ms=\#{(elapsed * 1000).round(1)}"
-  RUBY
-  script
-end
-
-def generate_script_sperf(calls, output_path, profiling_mode, freq)
-  script = +<<~RUBY
-    $LOAD_PATH.unshift(File.join(__dir__, "..", "lib"))
-    $LOAD_PATH.unshift(File.join(__dir__, "lib"))
-    require "sperf"
-    require "sperf_workload_methods"
-    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    Sperf.start(frequency: #{freq}, mode: :#{profiling_mode})
-  RUBY
-  calls.each { |name, usec| script << "SperfWorkload.#{name}(#{usec})\n" }
-  script << <<~RUBY
-    data = Sperf.stop
-    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
-    puts "elapsed_ms=\#{(elapsed * 1000).round(1)}"
-    puts "sampling_count=\#{data[:sampling_count]}"
-    puts "sampling_time_ns=\#{data[:sampling_time_ns]}"
-    encoded = Sperf::PProf.encode(data)
-    File.binwrite(#{output_path.inspect}, Sperf.gzip(encoded))
-  RUBY
-  script
-end
-
-def generate_script_stackprof(calls, output_path, profiling_mode, freq)
-  mode = profiling_mode == :wall ? :wall : :cpu
-  interval_us = 1_000_000 / freq
-  script = +<<~RUBY
-    $LOAD_PATH.unshift(File.join(__dir__, "lib"))
-    require "stackprof"
-    require "sperf_workload_methods"
-    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    StackProf.run(mode: :#{mode}, interval: #{interval_us}, raw: true, out: #{output_path.inspect}) do
-  RUBY
-  calls.each { |name, usec| script << "  SperfWorkload.#{name}(#{usec})\n" }
-  script << <<~RUBY
-    end
-    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
-    puts "elapsed_ms=\#{(elapsed * 1000).round(1)}"
-  RUBY
-  script
-end
-
-def generate_script_vernier(calls, output_path, profiling_mode, freq)
-  mode = profiling_mode == :wall ? :wall : :retained
-  interval_us = 1_000_000 / freq
-  script = +<<~RUBY
-    $LOAD_PATH.unshift(File.join(__dir__, "lib"))
-    require "vernier"
-    require "sperf_workload_methods"
-    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    result = Vernier.trace(mode: :#{mode}, interval: #{interval_us}) do
-  RUBY
-  calls.each { |name, usec| script << "  SperfWorkload.#{name}(#{usec})\n" }
-  script << <<~RUBY
-    end
-    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
-    puts "elapsed_ms=\#{(elapsed * 1000).round(1)}"
-    result.write(out: #{output_path.inspect})
-  RUBY
-  script
-end
-
-def generate_script_pf2(calls, output_path, profiling_mode, freq)
-  time_mode = profiling_mode == :wall ? :wall : :cpu
-  interval_ms = [1, 1000 / freq].max
-  script = +<<~RUBY
-    $LOAD_PATH.unshift(File.join(__dir__, "lib"))
-    require "pf2"
-    require "sperf_workload_methods"
-    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    Pf2.profile(out: #{output_path.inspect}, format: :pprof, time_mode: :#{time_mode}, interval_ms: #{interval_ms}) do
-  RUBY
-  calls.each { |name, usec| script << "  SperfWorkload.#{name}(#{usec})\n" }
-  script << <<~RUBY
-    end
-    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
-    puts "elapsed_ms=\#{(elapsed * 1000).round(1)}"
-  RUBY
-  script
+# Derive script path from scenario file and scenario id
+def script_path_for(scenario_file, scenario_id)
+  # scenarios_mixed.json -> mixed, scenarios_ratio.json -> ratio
+  type = File.basename(scenario_file, ".json").sub(/\Ascenarios_/, "")
+  File.join(__dir__, "scripts", "#{type}_#{scenario_id}.rb")
 end
 
 # --- Profiler-specific result parsing ---
@@ -336,7 +238,6 @@ end
 
 selected.each do |scenario|
   scenario_id = scenario["id"]
-  calls = expand_calls(scenario)
 
   if ratio_mode
     expected_ratio = scenario["expected_ratio"]
@@ -365,38 +266,37 @@ selected.each do |scenario|
                end
   output_path = File.join(__dir__, "output_#{scenario_id}#{output_ext}")
 
+  # Resolve workload script
+  workload_script = script_path_for(scenario_file, scenario_id)
+  unless File.exist?(workload_script)
+    $stderr.puts "Scenario ##{scenario_id}: script not found: #{workload_script}"
+    $stderr.puts "Run generate_scenarios.rb first to generate scripts/"
+    failures << scenario_id
+    next
+  end
+
+  ruby_bin = RbConfig.ruby
+
   # Run baseline (no profiler) if verbose
   if verbose
-    baseline_script = generate_script_baseline(calls)
-    baseline_path = File.join(__dir__, "_baseline_#{scenario_id}.rb")
-    File.write(baseline_path, baseline_script)
-    bl_stdout, _, bl_status = Open3.capture3(RbConfig.ruby, baseline_path)
-    File.delete(baseline_path) if File.exist?(baseline_path)
+    bl_stdout, _, bl_status = Open3.capture3(
+      ruby_bin, PROFRUN, "-P", "none", workload_script
+    )
     if bl_status.success? && bl_stdout =~ /elapsed_ms=([\d.]+)/
       puts format("  baseline (no profiler): %.1fms", $1.to_f)
     end
   end
 
-  # Generate test script
-  script = case profiler
-           when "sperf"    then generate_script_sperf(calls, output_path, profiling_mode, frequency)
-           when "stackprof" then generate_script_stackprof(calls, output_path, profiling_mode, frequency)
-           when "vernier"  then generate_script_vernier(calls, output_path, profiling_mode, frequency)
-           when "pf2"      then generate_script_pf2(calls, output_path, profiling_mode, frequency)
-           else abort "Unknown profiler: #{profiler}"
-           end
-
-  script_path = File.join(__dir__, "_bench_#{scenario_id}.rb")
-  File.write(script_path, script)
-
-  # Execute
-  ruby_bin = RbConfig.ruby
-  stdout, stderr, status = Open3.capture3(ruby_bin, script_path)
+  # Execute via runner
+  stdout, stderr, status = Open3.capture3(
+    ruby_bin, PROFRUN,
+    "-P", profiler, "-m", profiling_mode.to_s, "-F", frequency.to_s,
+    "-o", output_path, workload_script
+  )
 
   unless status.success?
     $stderr.puts "Scenario ##{scenario_id}: script failed: #{stderr}"
     failures << scenario_id
-    File.delete(script_path) if File.exist?(script_path)
     next
   end
 
@@ -432,7 +332,6 @@ selected.each do |scenario|
   unless actual_ms
     $stderr.puts "Scenario ##{scenario_id}: parse failed: #{raw_out}"
     failures << scenario_id
-    File.delete(script_path) if File.exist?(script_path)
     File.delete(output_path) if File.exist?(output_path)
     next
   end
@@ -493,8 +392,7 @@ selected.each do |scenario|
     puts
   end
 
-  # Cleanup temp files
-  File.delete(script_path) if File.exist?(script_path)
+  # Cleanup profiler output
   File.delete(output_path) if File.exist?(output_path)
 end
 
