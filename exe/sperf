@@ -8,7 +8,7 @@ OVERVIEW
 
   sperf profiles Ruby programs by sampling at safepoints and using actual
   time deltas (nanoseconds) as weights to correct safepoint bias.
-  Linux only. Requires Ruby >= 4.0.0.
+  POSIX systems (Linux, macOS). Requires Ruby >= 3.4.0.
 
 CLI USAGE
 

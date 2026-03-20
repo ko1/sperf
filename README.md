@@ -6,7 +6,7 @@
 
 A safepoint-based sampling performance profiler for Ruby. Uses actual time deltas as sample weights to correct safepoint bias.
 
-- Requires Ruby >= 4.0.0
+- Requires Ruby >= 3.4.0
 - Output: pprof protobuf, collapsed stacks, or text report
 - Modes: CPU time (per-thread) and wall time (with GVL/GC tracking)
 
