@@ -11,21 +11,28 @@ A safepoint-based sampling performance profiler for Ruby. Uses actual time delta
 ```bash
 gem install sperf
 
-# Performance summary
+# Performance summary (wall mode, prints to stderr)
 sperf stat ruby app.rb
 
 # Profile to file
-sperf record -o profile.pb.gz ruby app.rb
-sperf record -m wall -o profile.pb.gz ruby server.rb
+sperf record ruby app.rb                              # → sperf.data (pprof, cpu mode)
+sperf record -m wall -o profile.pb.gz ruby server.rb   # wall mode, custom output
 
 # View results
-go tool pprof -http=:8080 profile.pb.gz
+sperf report                      # open sperf.data in browser (requires Go)
+sperf report --top profile.pb.gz  # print top functions to terminal
+
+# Compare two profiles
+sperf diff before.pb.gz after.pb.gz        # open diff in browser
+sperf diff --top before.pb.gz after.pb.gz  # print diff to terminal
 ```
+
+### Ruby API
 
 ```ruby
 require "sperf"
 
-# Block form
+# Block form — profiles and saves to file
 Sperf.start(output: "profile.pb.gz", frequency: 500, mode: :cpu) do
   # code to profile
 end
@@ -37,7 +44,25 @@ data = Sperf.stop
 Sperf.save("profile.pb.gz", data)
 ```
 
-Run `sperf help` for full documentation (modes, formats, output interpretation, diagnostics guide).
+### Environment Variables
+
+Profile without code changes (e.g., Rails):
+
+```bash
+SPERF_ENABLED=1 SPERF_MODE=wall SPERF_OUTPUT=profile.pb.gz ruby app.rb
+```
+
+Run `sperf help` for full documentation (all options, output interpretation, diagnostics guide).
+
+## Subcommands
+
+| Command | Description |
+|---------|-------------|
+| `sperf record` | Profile a command and save to file |
+| `sperf stat` | Profile a command and print summary to stderr |
+| `sperf report` | Open pprof profile with `go tool pprof` |
+| `sperf diff` | Compare two pprof profiles (requires Go) |
+| `sperf help` | Show full reference documentation |
 
 ## How It Works
 
@@ -61,32 +86,33 @@ Timer thread (pthread)           VM thread (postponed job)
 
 If a safepoint is delayed, the sample carries proportionally more weight. The total weight equals the total time, accurately distributed across call stacks.
 
-### GVL Event Tracking (wall mode)
-
-sperf hooks GVL state transitions to capture off-GVL time:
-
-- `[GVL blocked]` — time spent off-GVL (I/O, sleep, C extension)
-- `[GVL wait]` — time waiting to reacquire the GVL (contention)
-
-### GC Phase Tracking
-
-- `[GC marking]` — time in GC mark phase
-- `[GC sweeping]` — time in GC sweep phase
-
-### Clock Sources
+### Modes
 
 | Mode | Clock | What it measures |
 |------|-------|------------------|
-| `:cpu` (default) | Per-thread CPU clock (Linux ABI) | CPU cycles consumed (excludes sleep/I/O) |
-| `:wall` | `CLOCK_MONOTONIC` | Real elapsed time (includes everything) |
+| `cpu` (default) | Per-thread CPU clock (Linux ABI) | CPU cycles consumed (excludes sleep/I/O) |
+| `wall` | `CLOCK_MONOTONIC` | Real elapsed time (includes everything) |
+
+Use `cpu` to find what consumes CPU. Use `wall` to find what makes things slow (I/O, GVL contention, GC).
+
+### Synthetic Frames (wall mode)
+
+sperf hooks GVL and GC events to attribute non-CPU time:
+
+| Frame | Meaning |
+|-------|---------|
+| `[GVL blocked]` | Off-GVL time (I/O, sleep, C extension releasing GVL) |
+| `[GVL wait]` | Waiting to reacquire the GVL (contention) |
+| `[GC marking]` | Time in GC mark phase |
+| `[GC sweeping]` | Time in GC sweep phase |
 
 ## Output Formats
 
 | Format | Extension | Use case |
 |--------|-----------|----------|
-| pprof (default) | `.pb.gz` | `go tool pprof`, speedscope |
-| collapsed | `.collapsed` | FlameGraph, speedscope |
-| text | `.txt` | Human/AI-readable report |
+| pprof (default) | `.pb.gz` | `sperf report`, `go tool pprof`, speedscope |
+| collapsed | `.collapsed` | FlameGraph (`flamegraph.pl`), speedscope |
+| text | `.txt` | Human/AI-readable flat + cumulative report |
 
 Format is auto-detected from extension, or set explicitly with `--format`.
 

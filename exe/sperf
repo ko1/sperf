@@ -39,6 +39,11 @@ CLI USAGE
     Default (no flag): opens interactive web UI in browser.
     Default file: sperf.data
 
+  diff: Compare two pprof profiles (target - base). Requires Go.
+    --top                   Print top functions by diff
+    --text                  Print text diff report
+    Default (no flag): opens diff in browser.
+
   Examples:
     sperf record ruby app.rb
     sperf record -o profile.pb.gz ruby app.rb
@@ -49,6 +54,8 @@ CLI USAGE
     sperf stat -o profile.pb.gz ruby app.rb
     sperf report
     sperf report --top profile.pb.gz
+    sperf diff before.pb.gz after.pb.gz
+    sperf diff --top before.pb.gz after.pb.gz
 
 RUBY API
 
@@ -236,6 +243,7 @@ HELP
 USAGE = "Usage: sperf record [options] command [args...]\n" \
        "       sperf stat [options] command [args...]\n" \
        "       sperf report [options] [file]\n" \
+       "       sperf diff [options] base.pb.gz target.pb.gz\n" \
        "       sperf help\n"
 
 subcommand = ARGV.shift
@@ -296,6 +304,64 @@ when "report"
     exec("go", "tool", "pprof", "-text", report_file)
   else
     exec("go", "tool", "pprof", "-http=:0", report_file)
+  end
+when "diff"
+  # sperf diff: compare two pprof profiles via go tool pprof -diff_base
+  diff_mode = :http
+  diff_parser = OptionParser.new do |opts|
+    opts.banner = "Usage: sperf diff [options] base.pb.gz target.pb.gz\n" \
+                  "       Compare two pprof profiles (shows target - base)."
+
+    opts.on("--top", "Print top functions by diff") do
+      diff_mode = :top
+    end
+
+    opts.on("--text", "Print text diff report") do
+      diff_mode = :text
+    end
+
+    opts.on("-h", "--help", "Show this help") do
+      puts opts
+      exit
+    end
+  end
+
+  begin
+    diff_parser.order!(ARGV)
+  rescue OptionParser::InvalidOption => e
+    $stderr.puts e.message
+    $stderr.puts diff_parser
+    exit 1
+  end
+
+  if ARGV.size < 2
+    $stderr.puts "Two profile files required."
+    $stderr.puts diff_parser
+    exit 1
+  end
+
+  base_file, target_file = ARGV.shift(2)
+
+  [base_file, target_file].each do |f|
+    unless File.exist?(f)
+      $stderr.puts "File not found: #{f}"
+      exit 1
+    end
+  end
+
+  unless system("go", "version", out: File::NULL, err: File::NULL)
+    $stderr.puts "'go' command not found. Install Go to use 'sperf diff'."
+    $stderr.puts "  https://go.dev/dl/"
+    exit 1
+  end
+
+  case diff_mode
+  when :top
+    exec("go", "tool", "pprof", "-top", "-diff_base=#{base_file}", target_file)
+  when :text
+    exec("go", "tool", "pprof", "-text", "-diff_base=#{base_file}", target_file)
+  else
+    exec("go", "tool", "pprof", "-http=:0", "-diff_base=#{base_file}", target_file)
   end
 when "record", "stat"
   # continue below
