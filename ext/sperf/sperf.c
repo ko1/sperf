@@ -6,7 +6,6 @@
 #include <time.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/syscall.h>
 #include <unistd.h>
 
 #define SPERF_MAX_STACK_DEPTH 512
@@ -37,7 +36,6 @@ typedef struct sperf_sample {
 } sperf_sample_t;
 
 typedef struct sperf_thread_data {
-    pid_t tid;                      /* cached native thread ID */
     int64_t prev_cpu_ns;
     int64_t prev_wall_ns;
     /* GVL event tracking */
@@ -97,12 +95,10 @@ static const rb_data_type_t sperf_profiler_type = {
 /* ---- CPU time ---- */
 
 static int64_t
-sperf_cpu_time_ns(pid_t tid)
+sperf_cpu_time_ns(void)
 {
-    /* Linux kernel ABI: thread CPU clock from TID */
-    clockid_t cid = ~(clockid_t)(tid) << 3 | 6;
     struct timespec ts;
-    if (clock_gettime(cid, &ts) != 0) return -1;
+    if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) != 0) return -1;
     return (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
 }
 
@@ -122,7 +118,7 @@ static int64_t
 sperf_current_time_ns(sperf_profiler_t *prof, sperf_thread_data_t *td)
 {
     if (prof->mode == 0) {
-        return sperf_cpu_time_ns(td->tid);
+        return sperf_cpu_time_ns();
     } else {
         return sperf_wall_time_ns();
     }
@@ -189,7 +185,6 @@ sperf_thread_data_create(sperf_profiler_t *prof, VALUE thread)
 {
     sperf_thread_data_t *td = (sperf_thread_data_t *)calloc(1, sizeof(sperf_thread_data_t));
     if (!td) return NULL;
-    td->tid = (pid_t)syscall(SYS_gettid);
     td->prev_cpu_ns = sperf_current_time_ns(prof, td);
     td->prev_wall_ns = sperf_wall_time_ns();
     rb_internal_thread_specific_set(thread, prof->ts_key, td);
