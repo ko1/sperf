@@ -4,7 +4,7 @@
 
 [sperf](#index) is a [safepoint](#index:safepoint)-based [sampling](#index:sampling) performance profiler for Ruby. It helps you find where your Ruby program spends its time — whether that's CPU computation, I/O waits, [GVL](#index:GVL) contention, or garbage collection.
 
-Unlike traditional sampling profilers that count samples uniformly, sperf uses actual time deltas (in nanoseconds) as [weight](#index:weight)s for each sample. This corrects the [safepoint bias](#index:safepoint bias) problem that affects all Ruby sampling profilers, producing more accurate results.
+Unlike traditional sampling profilers that count samples uniformly, sperf uses actual time deltas (in nanoseconds) as [weight](#index:weight)s for each sample. This corrects the [safepoint bias](#index:safepoint bias) problem inherent in [postponed job](#index:postponed job)-based sampling, producing more accurate results.
 
 sperf is inspired by Linux [perf](#cite:demelo2010), providing a familiar CLI interface with subcommands like `record`, `stat`, and `report`.
 
