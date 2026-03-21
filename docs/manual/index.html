@@ -1239,6 +1239,8 @@ details.mermaid-source pre {
   <section class="chapter" id="chapter-part1" style="display: none;">
     <h1 id="part1--getting-started">Getting Started</h1>
 
+<p>This part covers what sperf is, why it exists, and how to install it on your system.</p>
+
     <nav class="chapter-nav">
       <a href="#" class="nav-prev" onclick="showChapter('cover'); return false;">&larr; sperf guide</a>
       <a href="#" class="nav-next" onclick="showChapter('01-introduction'); return false;">1. Introduction &rarr;</a>
@@ -1251,16 +1253,16 @@ details.mermaid-source pre {
 
 <p><span id="01-introduction--idx-0">sperf</span> is a <span id="01-introduction--idx-1">safepoint</span>-based <span id="01-introduction--idx-2">sampling</span> performance profiler for Ruby. It helps you find where your Ruby program spends its time — whether that’s CPU computation, I/O waits, <span id="01-introduction--idx-3">GVL</span> contention, or garbage collection.</p>
 
-<p>Unlike traditional sampling profilers that count samples uniformly, sperf uses actual time deltas (in nanoseconds) as <span id="01-introduction--idx-4">weight</span>s for each sample. This corrects the <span id="01-introduction--idx-5">safepoint bias</span> problem that affects all Ruby sampling profilers, producing more accurate results.</p>
+<p>Unlike traditional sampling profilers that count samples uniformly, sperf uses actual time deltas (in nanoseconds) as <span id="01-introduction--idx-4">weight</span>s for each sample. This corrects the <span id="01-introduction--idx-5">safepoint bias</span> problem inherent in <span id="01-introduction--idx-6">postponed job</span>-based sampling, producing more accurate results.</p>
 
 <p>sperf is inspired by Linux <span id="01-introduction--cite-0">perf<sup class="cite-ref"><a href="#bib-demelo2010" title="Arnaldo Carvalho de Melo. The New Linux perf Tools. 2010." onclick="showChapterAndScroll('__bibliography__', 'bib-demelo2010'); return false;">[Arnaldo, 2010]</a></sup></span>, providing a familiar CLI interface with subcommands like <code>record</code>, <code>stat</code>, and <code>report</code>.</p>
 
 <h3 id="01-introduction--advantages">1.1.1 Advantages</h3>
 
 <ul>
-  <li><strong>Accurate profiling</strong>: Time-delta weighting corrects <span id="01-introduction--idx-6">safepoint bias</span>, producing results closer to real time distribution than traditional count-based profilers.</li>
+  <li><strong>Accurate profiling</strong>: Time-delta weighting corrects <span id="01-introduction--idx-7">safepoint bias</span>, producing results closer to real time distribution than traditional count-based profilers.</li>
   <li><strong>GVL / GC visibility</strong>: In wall mode, tracks off-GVL blocking, GVL contention, and GC marking/sweeping as distinct frames — no separate tool needed.</li>
-  <li><strong>Standard output formats</strong>: Outputs <span id="01-introduction--idx-7">pprof</span> protobuf (compatible with <code>go tool pprof</code>), <span id="01-introduction--idx-8">collapsed stacks</span> (for flame graphs / speedscope), and human-readable text.</li>
+  <li><strong>Standard output formats</strong>: Outputs <span id="01-introduction--idx-8">pprof</span> protobuf (compatible with <code>go tool pprof</code>), <span id="01-introduction--idx-9">collapsed stacks</span> (for flame graphs / speedscope), and human-readable text.</li>
   <li><strong>Low overhead</strong>: Default 1000 Hz sampling adds &lt; 0.2% overhead, suitable for production.</li>
   <li><strong>Simple CLI</strong>: <code>sperf stat</code> for a quick overview, <code>sperf record</code> + <code>sperf report</code> for detailed analysis.</li>
 </ul>
@@ -1283,7 +1285,7 @@ details.mermaid-source pre {
 
 <p>Most Ruby sampling profilers collect backtraces by calling <code>rb_profile_frames</code> directly in the signal handler. This approach yields backtraces at the actual signal timing, but relies on undocumented internal VM state — <code>rb_profile_frames</code> is not guaranteed to be async-signal-safe, and the results can be unreliable if the VM is in the middle of updating its internal structures.</p>
 
-<p>sperf takes a different approach: it uses the <span id="01-introduction--idx-9">postponed job</span> mechanism (<code>rb_postponed_job</code>), which is the Ruby VM’s official API for safely deferring work from signal handlers. Backtrace collection is deferred to the next <span id="01-introduction--idx-10">safepoint</span> — a point where the VM is in a consistent state and <code>rb_profile_frames</code> can return reliable results. The trade-off is that when a timer fires between safepoints, the actual sample is delayed until the next safepoint.</p>
+<p>sperf takes a different approach: it uses the <span id="01-introduction--idx-10">postponed job</span> mechanism (<code>rb_postponed_job</code>), which is the Ruby VM’s official API for safely deferring work from signal handlers. Backtrace collection is deferred to the next <span id="01-introduction--idx-11">safepoint</span> — a point where the VM is in a consistent state and <code>rb_profile_frames</code> can return reliable results. The trade-off is that when a timer fires between safepoints, the actual sample is delayed until the next safepoint.</p>
 
 <p>If each sample were counted equally (weight = 1), a sample delayed by a long-running C method would get the same weight as one taken immediately. This is the <span id="01-introduction--cite-2">safepoint bias<sup class="cite-ref"><a href="#bib-mytkowicz2010" title="Todd Mytkowicz and Amer Diwan and Matthias Hauswirth and Peter F. Sweeney. Evaluating the Accuracy of Java Profilers. ACM. pp. 187--197. 2010." onclick="showChapterAndScroll('__bibliography__', 'bib-mytkowicz2010'); return false;">[Todd, 2010]</a></sup></span> problem: functions that happen to be running when the thread reaches a safepoint appear more often than they should, while functions between safepoints are under-represented.</p>
 
@@ -1319,9 +1321,9 @@ sequenceDiagram
 <h3 id="01-introduction--other-advantages">1.2.2 Other advantages</h3>
 
 <ul>
-  <li><strong>GVL and GC awareness</strong>: In wall mode, sperf tracks time spent blocked off the GVL, waiting to reacquire the GVL, and in GC marking/sweeping phases — each as distinct <span id="01-introduction--idx-11">synthetic frames</span>.</li>
-  <li><strong>perf-like CLI</strong>: The <span id="01-introduction--idx-12"><code>sperf stat</code></span> command gives you a quick performance overview (like <code>perf stat</code>), while <span id="01-introduction--idx-13"><code>sperf record</code></span> + <span id="01-introduction--idx-14"><code>sperf report</code></span> gives you detailed profiling.</li>
-  <li><strong>Standard output</strong>: sperf outputs <span id="01-introduction--idx-15">pprof</span> protobuf format, compatible with Go’s <code>pprof</code> tool ecosystem, as well as <span id="01-introduction--idx-16">collapsed stacks</span> for <span id="01-introduction--cite-3">flame graphs<sup class="cite-ref"><a href="#bib-gregg2016" title="Brendan Gregg. The Flame Graph. Communications of the ACM. Vol. 59. No. 6. pp. 48--57. 2016." onclick="showChapterAndScroll('__bibliography__', 'bib-gregg2016'); return false;">[Brendan, 2016]</a></sup></span> and speedscope.</li>
+  <li><strong>GVL and GC awareness</strong>: In wall mode, sperf tracks time spent blocked off the GVL, waiting to reacquire the GVL, and in GC marking/sweeping phases — each as distinct <span id="01-introduction--idx-12">synthetic frames</span>.</li>
+  <li><strong>perf-like CLI</strong>: The <span id="01-introduction--idx-13"><code>sperf stat</code></span> command gives you a quick performance overview (like <code>perf stat</code>), while <span id="01-introduction--idx-14"><code>sperf record</code></span> + <span id="01-introduction--idx-15"><code>sperf report</code></span> gives you detailed profiling.</li>
+  <li><strong>Standard output</strong>: sperf outputs <span id="01-introduction--idx-16">pprof</span> protobuf format, compatible with Go’s <code>pprof</code> tool ecosystem, as well as <span id="01-introduction--idx-17">collapsed stacks</span> for <span id="01-introduction--cite-3">flame graphs<sup class="cite-ref"><a href="#bib-gregg2016" title="Brendan Gregg. The Flame Graph. Communications of the ACM. Vol. 59. No. 6. pp. 48--57. 2016." onclick="showChapterAndScroll('__bibliography__', 'bib-gregg2016'); return false;">[Brendan, 2016]</a></sup></span> and speedscope.</li>
   <li><strong>Low overhead</strong>: Default 1000 Hz sampling adds &lt; 0.2% overhead, suitable for production use.</li>
 </ul>
 
@@ -1450,6 +1452,8 @@ Run 'sperf help' for full documentation
   </section>
   <section class="chapter" id="chapter-part2" style="display: none;">
     <h1 id="part2--how-to-use">How to Use</h1>
+
+<p>This part explains how to profile Ruby programs with sperf — from the command line and as a library — and describes the available output formats.</p>
 
     <nav class="chapter-nav">
       <a href="#" class="nav-prev" onclick="showChapter('02-installation'); return false;">&larr; 2. Installation</a>
@@ -2258,6 +2262,8 @@ Cumulative:
   <section class="chapter" id="chapter-part3" style="display: none;">
     <h1 id="part3--deep-dive">Deep Dive</h1>
 
+<p>This part explores how to read and act on profiling results, and explains how sperf works under the hood.</p>
+
     <nav class="chapter-nav">
       <a href="#" class="nav-prev" onclick="showChapter('05-output-formats'); return false;">&larr; 5. Output Formats</a>
       <a href="#" class="nav-next" onclick="showChapter('06-interpreting-results'); return false;">6. Interpreting Results &rarr;</a>
@@ -2959,8 +2965,8 @@ Sperf.save("profile.txt", data)
       <h2 class="index-letter">C</h2>
       <dl class="index-entries">
         <dt>collapsed stacks</dt>
-        <dd><a href="#01-introduction--idx-8" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-8'); return false;">1. Introduction</a></dd>
-        <dd><a href="#01-introduction--idx-16" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-16'); return false;">1. Introduction</a></dd>
+        <dd><a href="#01-introduction--idx-9" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-9'); return false;">1. Introduction</a></dd>
+        <dd><a href="#01-introduction--idx-17" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-17'); return false;">1. Introduction</a></dd>
         <dd><a href="#05-output-formats--idx-1" onclick="showChapterAndScroll('05-output-formats', '05-output-formats--idx-1'); return false;">5. Output Formats</a></dd>
         <dt>cpu mode</dt>
         <dd><a href="#03-cli-usage--idx-3" onclick="showChapterAndScroll('03-cli-usage', '03-cli-usage--idx-3'); return false;">3. CLI Usage</a></dd>
@@ -2998,10 +3004,11 @@ Sperf.save("profile.txt", data)
       <h2 class="index-letter">P</h2>
       <dl class="index-entries">
         <dt>postponed job</dt>
-        <dd><a href="#01-introduction--idx-9" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-9'); return false;">1. Introduction</a></dd>
+        <dd><a href="#01-introduction--idx-6" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-6'); return false;">1. Introduction</a></dd>
+        <dd><a href="#01-introduction--idx-10" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-10'); return false;">1. Introduction</a></dd>
         <dt>pprof</dt>
-        <dd><a href="#01-introduction--idx-7" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-7'); return false;">1. Introduction</a></dd>
-        <dd><a href="#01-introduction--idx-15" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-15'); return false;">1. Introduction</a></dd>
+        <dd><a href="#01-introduction--idx-8" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-8'); return false;">1. Introduction</a></dd>
+        <dd><a href="#01-introduction--idx-16" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-16'); return false;">1. Introduction</a></dd>
         <dd><a href="#05-output-formats--idx-0" onclick="showChapterAndScroll('05-output-formats', '05-output-formats--idx-0'); return false;">5. Output Formats</a></dd>
       </dl>
     </div>
@@ -3016,10 +3023,10 @@ Sperf.save("profile.txt", data)
         <dd><a href="#04-library-usage--idx-1" onclick="showChapterAndScroll('04-library-usage', '04-library-usage--idx-1'); return false;">4. Ruby API</a></dd>
         <dt>safepoint</dt>
         <dd><a href="#01-introduction--idx-1" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-1'); return false;">1. Introduction</a></dd>
-        <dd><a href="#01-introduction--idx-10" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-10'); return false;">1. Introduction</a></dd>
+        <dd><a href="#01-introduction--idx-11" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-11'); return false;">1. Introduction</a></dd>
         <dt>safepoint bias</dt>
         <dd><a href="#01-introduction--idx-5" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-5'); return false;">1. Introduction</a></dd>
-        <dd><a href="#01-introduction--idx-6" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-6'); return false;">1. Introduction</a></dd>
+        <dd><a href="#01-introduction--idx-7" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-7'); return false;">1. Introduction</a></dd>
         <dt>sampling</dt>
         <dd><a href="#01-introduction--idx-2" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-2'); return false;">1. Introduction</a></dd>
         <dt>single session</dt>
@@ -3029,16 +3036,16 @@ Sperf.save("profile.txt", data)
         <dt>sperf diff</dt>
         <dd><a href="#03-cli-usage--idx-6" onclick="showChapterAndScroll('03-cli-usage', '03-cli-usage--idx-6'); return false;">3. CLI Usage</a></dd>
         <dt>sperf record</dt>
-        <dd><a href="#01-introduction--idx-13" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-13'); return false;">1. Introduction</a></dd>
+        <dd><a href="#01-introduction--idx-14" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-14'); return false;">1. Introduction</a></dd>
         <dd><a href="#03-cli-usage--idx-2" onclick="showChapterAndScroll('03-cli-usage', '03-cli-usage--idx-2'); return false;">3. CLI Usage</a></dd>
         <dt>sperf report</dt>
-        <dd><a href="#01-introduction--idx-14" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-14'); return false;">1. Introduction</a></dd>
+        <dd><a href="#01-introduction--idx-15" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-15'); return false;">1. Introduction</a></dd>
         <dd><a href="#03-cli-usage--idx-5" onclick="showChapterAndScroll('03-cli-usage', '03-cli-usage--idx-5'); return false;">3. CLI Usage</a></dd>
         <dt>sperf stat</dt>
-        <dd><a href="#01-introduction--idx-12" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-12'); return false;">1. Introduction</a></dd>
+        <dd><a href="#01-introduction--idx-13" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-13'); return false;">1. Introduction</a></dd>
         <dd><a href="#03-cli-usage--idx-0" onclick="showChapterAndScroll('03-cli-usage', '03-cli-usage--idx-0'); return false;">3. CLI Usage</a></dd>
         <dt>synthetic frames</dt>
-        <dd><a href="#01-introduction--idx-11" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-11'); return false;">1. Introduction</a></dd>
+        <dd><a href="#01-introduction--idx-12" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-12'); return false;">1. Introduction</a></dd>
         <dd><a href="#06-interpreting-results--idx-3" onclick="showChapterAndScroll('06-interpreting-results', '06-interpreting-results--idx-3'); return false;">6. Interpreting Results</a></dd>
       </dl>
     </div>
