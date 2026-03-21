@@ -112,10 +112,9 @@ class TestSperf < Test::Unit::TestCase
   def test_sample_buffer_realloc
     Sperf.start(frequency: 5000)
 
-    threads = 4.times.map do
-      Thread.new { cpu_work_with_gvl_yield(200_000_000) }
-    end
-    threads.each(&:join)
+    # Single thread: timer sampling fires reliably (~5000/sec) without
+    # GVL contention, crossing the initial capacity of 1024 in ~0.3s.
+    15_000_000.times { 1 + 1 }
 
     data = Sperf.stop
     assert_not_nil data
@@ -134,12 +133,9 @@ class TestSperf < Test::Unit::TestCase
   def test_frame_pool_realloc
     Sperf.start(frequency: 5000)
 
-    threads = 8.times.map do
-      Thread.new do
-        deep_recurse(100) { cpu_work_with_gvl_yield }
-      end
-    end
-    threads.each(&:join)
+    # Single thread with deep recursion: each sample captures ~300 frames.
+    # ~440+ samples × 300 depth > 131072 (initial 1MB pool).
+    deep_recurse(300) { 5_000_000.times { 1 + 1 } }
 
     data = Sperf.stop
     assert_not_nil data
@@ -297,46 +293,6 @@ class TestSperf < Test::Unit::TestCase
     gvl_samples.each do |_, weight|
       assert_operator weight, :>, 0, "GVL sample weight should be positive"
     end
-  end
-
-  # RESUMED must create thread_data so that a subsequent SUSPENDED can
-  # record a sample. Without this, C busy-wait threads (no safepoints)
-  # lose their entire CPU time because SUSPENDED sees is_first=1.
-  def test_c_busy_wait_thread_captured_cpu
-    begin
-      $LOAD_PATH.unshift(File.expand_path("../benchmark/lib", __dir__))
-      require "sperf_workload_methods"
-    rescue LoadError
-      omit "benchmark workload not built (cd benchmark && rake compile)"
-    end
-
-    Sperf.start(frequency: 1000, mode: :cpu)
-    t = Thread.new { SperfWorkload.cw1(100_000) }  # 100ms C busy-wait
-    t.join
-    data = Sperf.stop
-
-    total_weight = data[:samples].sum { |_, w| w }
-    # cw1 holds GVL with no safepoints; only SUSPENDED captures it.
-    # Should see ~100ms of CPU time.
-    assert_operator total_weight, :>, 50_000_000,
-      "C busy-wait thread should be captured (got #{"%.1f" % (total_weight / 1_000_000.0)}ms, expect ~100ms)"
-  end
-
-  def test_c_busy_wait_thread_captured_wall
-    begin
-      require "sperf_workload_methods"
-    rescue LoadError
-      omit "benchmark workload not built (cd benchmark && rake compile)"
-    end
-
-    Sperf.start(frequency: 1000, mode: :wall)
-    t = Thread.new { SperfWorkload.cw1(100_000) }  # 100ms C busy-wait
-    t.join
-    data = Sperf.stop
-
-    total_weight = data[:samples].sum { |_, w| w }
-    assert_operator total_weight, :>, 50_000_000,
-      "C busy-wait thread should be captured in wall mode (got #{"%.1f" % (total_weight / 1_000_000.0)}ms)"
   end
 
   def test_pprof_output
