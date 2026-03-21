@@ -56,7 +56,7 @@ Profile without code changes (e.g., Rails):
 SPERF_ENABLED=1 SPERF_MODE=wall SPERF_OUTPUT=profile.pb.gz ruby app.rb
 ```
 
-Run `sperf help` for full documentation (all options, output interpretation, diagnostics guide).
+Run `sperf help` for full documentation, or see the [online manual](https://ko1.github.io/sperf/).
 
 ## Subcommands
 
