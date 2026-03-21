@@ -252,7 +252,23 @@ sperf report --top
 sperf report --text
 ```
 
-The default behavior opens an interactive web UI in your browser with flame graphs, top function views, and call graph visualizations powered by [pprof](#cite:ren2010).
+### Example: Top and text output
+
+Using the `fib.rb` profile recorded earlier:
+
+```bash
+sperf report --top sperf.data
+```
+
+```
+Type: cpu
+Showing nodes accounting for 577.31ms, 100% of 577.31ms total
+      flat  flat%   sum%        cum   cum%
+  577.31ms   100%   100%   577.31ms   100%  Object#fib
+         0     0%   100%   577.31ms   100%  <main>
+```
+
+The default behavior (without `--top` or `--text`) opens an interactive web UI in your browser with flame graphs, top function views, and call graph visualizations powered by [pprof](#cite:ren2010).
 
 ### report options
 
