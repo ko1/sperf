@@ -9,6 +9,7 @@ A safepoint-based sampling performance profiler for Ruby. Uses actual time delta
 - Requires Ruby >= 3.4.0
 - Output: pprof protobuf, collapsed stacks, or text report
 - Modes: CPU time (per-thread) and wall time (with GVL/GC tracking)
+- [Online manual](https://ko1.github.io/sperf/)
 
 ## Quick Start
 
