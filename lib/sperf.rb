@@ -3,7 +3,7 @@ require "zlib"
 require "stringio"
 
 module Sperf
-  VERSION = "0.1.0"
+  VERSION = "0.2.0"
 
   @verbose = false
   @output = nil
