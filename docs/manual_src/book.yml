@@ -2,6 +2,7 @@ title: "sperf guide"
 author: "sperf project"
 language: "en"
 ai_generated: true
+output_dir: ../manual
 bibliography: references.bib
 chapters:
   - cover: cover.md

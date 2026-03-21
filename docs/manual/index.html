@@ -891,6 +891,12 @@ details.mermaid-source pre {
                 <a href="#01-introduction--what-is-sperf" class="toc-h2" onclick="showChapterAndScroll('01-introduction', '01-introduction--what-is-sperf')">1.1 What is sperf?</a>
               </li>
               <li>
+                <a href="#01-introduction--advantages" class="toc-h3" onclick="showChapterAndScroll('01-introduction', '01-introduction--advantages')">1.1.1 Advantages</a>
+              </li>
+              <li>
+                <a href="#01-introduction--limitations" class="toc-h3" onclick="showChapterAndScroll('01-introduction', '01-introduction--limitations')">1.1.2 Limitations</a>
+              </li>
+              <li>
                 <a href="#01-introduction--why-another-profiler" class="toc-h2" onclick="showChapterAndScroll('01-introduction', '01-introduction--why-another-profiler')">1.2 Why another profiler?</a>
               </li>
               <li>
@@ -972,7 +978,10 @@ details.mermaid-source pre {
                 <a href="#03-cli-usage--sperf-report" class="toc-h2" onclick="showChapterAndScroll('03-cli-usage', '03-cli-usage--sperf-report')">3.3 sperf report</a>
               </li>
               <li>
-                <a href="#03-cli-usage--report-options" class="toc-h3" onclick="showChapterAndScroll('03-cli-usage', '03-cli-usage--report-options')">3.3.1 report options</a>
+                <a href="#03-cli-usage--example-top-and-text-output" class="toc-h3" onclick="showChapterAndScroll('03-cli-usage', '03-cli-usage--example-top-and-text-output')">3.3.1 Example: Top and text output</a>
+              </li>
+              <li>
+                <a href="#03-cli-usage--report-options" class="toc-h3" onclick="showChapterAndScroll('03-cli-usage', '03-cli-usage--report-options')">3.3.2 report options</a>
               </li>
               <li>
                 <a href="#03-cli-usage--sperf-diff" class="toc-h2" onclick="showChapterAndScroll('03-cli-usage', '03-cli-usage--sperf-diff')">3.4 sperf diff</a>
@@ -1196,6 +1205,9 @@ details.mermaid-source pre {
       <li class="toc-chapter" data-chapter="__bibliography__">
         <a href="#__bibliography__" class="toc-h1" onclick="showChapter('__bibliography__')">Bibliography</a>
       </li>
+      <li class="toc-chapter" data-chapter="__index__">
+        <a href="#__index__" class="toc-h1" onclick="showChapter('__index__')">Index</a>
+      </li>
     </ul>
   </nav>
 </div>
@@ -1205,6 +1217,8 @@ details.mermaid-source pre {
 <main class="content" id="content">
   <section class="chapter cover-page" id="chapter-cover" style="display: none;">
     <h1 id="cover--sperf-guide">sperf guide</h1>
+
+<p><img src="images/logo.svg" alt="sperf logo" /></p>
 
 <p>A safepoint-based sampling performance profiler for Ruby.</p>
 
@@ -1235,11 +1249,31 @@ details.mermaid-source pre {
 
 <h2 id="01-introduction--what-is-sperf">1.1 What is sperf?</h2>
 
-<p>sperf is a safepoint-based sampling performance profiler for Ruby. It helps you find where your Ruby program spends its time — whether that’s CPU computation, I/O waits, GVL contention, or garbage collection.</p>
+<p><span id="01-introduction--idx-0">sperf</span> is a <span id="01-introduction--idx-1">safepoint</span>-based <span id="01-introduction--idx-2">sampling</span> performance profiler for Ruby. It helps you find where your Ruby program spends its time — whether that’s CPU computation, I/O waits, <span id="01-introduction--idx-3">GVL</span> contention, or garbage collection.</p>
 
-<p>Unlike traditional sampling profilers that count samples uniformly, sperf uses actual time deltas (in nanoseconds) as weights for each sample. This corrects the safepoint bias problem that affects all Ruby sampling profilers, producing more accurate results.</p>
+<p>Unlike traditional sampling profilers that count samples uniformly, sperf uses actual time deltas (in nanoseconds) as <span id="01-introduction--idx-4">weight</span>s for each sample. This corrects the <span id="01-introduction--idx-5">safepoint bias</span> problem that affects all Ruby sampling profilers, producing more accurate results.</p>
 
 <p>sperf is inspired by Linux <span id="01-introduction--cite-0">perf<sup class="cite-ref"><a href="#bib-demelo2010" title="Arnaldo Carvalho de Melo. The New Linux perf Tools. 2010." onclick="showChapterAndScroll('__bibliography__', 'bib-demelo2010'); return false;">[Arnaldo, 2010]</a></sup></span>, providing a familiar CLI interface with subcommands like <code>record</code>, <code>stat</code>, and <code>report</code>.</p>
+
+<h3 id="01-introduction--advantages">1.1.1 Advantages</h3>
+
+<ul>
+  <li><strong>Accurate profiling</strong>: Time-delta weighting corrects <span id="01-introduction--idx-6">safepoint bias</span>, producing results closer to real time distribution than traditional count-based profilers.</li>
+  <li><strong>GVL / GC visibility</strong>: In wall mode, tracks off-GVL blocking, GVL contention, and GC marking/sweeping as distinct frames — no separate tool needed.</li>
+  <li><strong>Standard output formats</strong>: Outputs <span id="01-introduction--idx-7">pprof</span> protobuf (compatible with <code>go tool pprof</code>), <span id="01-introduction--idx-8">collapsed stacks</span> (for flame graphs / speedscope), and human-readable text.</li>
+  <li><strong>Low overhead</strong>: Default 1000 Hz sampling adds &lt; 0.2% overhead, suitable for production.</li>
+  <li><strong>Simple CLI</strong>: <code>sperf stat</code> for a quick overview, <code>sperf record</code> + <code>sperf report</code> for detailed analysis.</li>
+</ul>
+
+<h3 id="01-introduction--limitations">1.1.2 Limitations</h3>
+
+<ul>
+  <li><strong>Ruby 3.4+ only</strong>: Requires APIs introduced in Ruby 3.4.</li>
+  <li><strong>POSIX only</strong>: Linux and macOS. Windows is not supported.</li>
+  <li><strong>Method-level granularity</strong>: No line-number resolution — profiles show method names only.</li>
+  <li><strong>Single session</strong>: Only one profiling session can be active at a time (global state in the C extension).</li>
+  <li><strong>Safepoint latency</strong>: Samples are still deferred to safepoints. The time-delta weighting corrects the <em>bias</em> but cannot recover the exact interrupted instruction pointer.</li>
+</ul>
 
 <h2 id="01-introduction--why-another-profiler">1.2 Why another profiler?</h2>
 
@@ -1247,9 +1281,11 @@ details.mermaid-source pre {
 
 <h3 id="01-introduction--the-safepoint-bias-problem">1.2.1 The safepoint bias problem</h3>
 
-<p>All Ruby sampling profilers must collect backtraces at safepoints — points where the VM is in a consistent state. When a timer fires between safepoints, the actual sample is delayed until the next safepoint. Traditional profilers count each sample equally (weight = 1), which means a sample that was delayed by a long-running C method gets the same weight as one taken immediately.</p>
+<p>Most Ruby sampling profilers collect backtraces by calling <code>rb_profile_frames</code> directly in the signal handler. This approach yields backtraces at the actual signal timing, but relies on undocumented internal VM state — <code>rb_profile_frames</code> is not guaranteed to be async-signal-safe, and the results can be unreliable if the VM is in the middle of updating its internal structures.</p>
 
-<p>This is the <span id="01-introduction--cite-2">safepoint bias<sup class="cite-ref"><a href="#bib-mytkowicz2010" title="Todd Mytkowicz and Amer Diwan and Matthias Hauswirth and Peter F. Sweeney. Evaluating the Accuracy of Java Profilers. ACM. pp. 187--197. 2010." onclick="showChapterAndScroll('__bibliography__', 'bib-mytkowicz2010'); return false;">[Todd, 2010]</a></sup></span> problem: functions that happen to be running when the thread reaches a safepoint appear more often than they should, while functions between safepoints are under-represented.</p>
+<p>sperf takes a different approach: it uses the <span id="01-introduction--idx-9">postponed job</span> mechanism (<code>rb_postponed_job</code>), which is the Ruby VM’s official API for safely deferring work from signal handlers. Backtrace collection is deferred to the next <span id="01-introduction--idx-10">safepoint</span> — a point where the VM is in a consistent state and <code>rb_profile_frames</code> can return reliable results. The trade-off is that when a timer fires between safepoints, the actual sample is delayed until the next safepoint.</p>
+
+<p>If each sample were counted equally (weight = 1), a sample delayed by a long-running C method would get the same weight as one taken immediately. This is the <span id="01-introduction--cite-2">safepoint bias<sup class="cite-ref"><a href="#bib-mytkowicz2010" title="Todd Mytkowicz and Amer Diwan and Matthias Hauswirth and Peter F. Sweeney. Evaluating the Accuracy of Java Profilers. ACM. pp. 187--197. 2010." onclick="showChapterAndScroll('__bibliography__', 'bib-mytkowicz2010'); return false;">[Todd, 2010]</a></sup></span> problem: functions that happen to be running when the thread reaches a safepoint appear more often than they should, while functions between safepoints are under-represented.</p>
 
 <div class="mermaid">
 sequenceDiagram
@@ -1283,9 +1319,9 @@ sequenceDiagram
 <h3 id="01-introduction--other-advantages">1.2.2 Other advantages</h3>
 
 <ul>
-  <li><strong>GVL and GC awareness</strong>: In wall mode, sperf tracks time spent blocked off the GVL, waiting to reacquire the GVL, and in GC marking/sweeping phases — each as distinct synthetic frames.</li>
-  <li><strong>perf-like CLI</strong>: The <code>sperf stat</code> command gives you a quick performance overview (like <code>perf stat</code>), while <code>sperf record</code> + <code>sperf report</code> gives you detailed profiling.</li>
-  <li><strong>Standard output</strong>: sperf outputs pprof protobuf format, compatible with Go’s <code>pprof</code> tool ecosystem, as well as collapsed stacks for <span id="01-introduction--cite-3">flame graphs<sup class="cite-ref"><a href="#bib-gregg2016" title="Brendan Gregg. The Flame Graph. Communications of the ACM. Vol. 59. No. 6. pp. 48--57. 2016." onclick="showChapterAndScroll('__bibliography__', 'bib-gregg2016'); return false;">[Brendan, 2016]</a></sup></span> and speedscope.</li>
+  <li><strong>GVL and GC awareness</strong>: In wall mode, sperf tracks time spent blocked off the GVL, waiting to reacquire the GVL, and in GC marking/sweeping phases — each as distinct <span id="01-introduction--idx-11">synthetic frames</span>.</li>
+  <li><strong>perf-like CLI</strong>: The <span id="01-introduction--idx-12"><code>sperf stat</code></span> command gives you a quick performance overview (like <code>perf stat</code>), while <span id="01-introduction--idx-13"><code>sperf record</code></span> + <span id="01-introduction--idx-14"><code>sperf report</code></span> gives you detailed profiling.</li>
+  <li><strong>Standard output</strong>: sperf outputs <span id="01-introduction--idx-15">pprof</span> protobuf format, compatible with Go’s <code>pprof</code> tool ecosystem, as well as <span id="01-introduction--idx-16">collapsed stacks</span> for <span id="01-introduction--cite-3">flame graphs<sup class="cite-ref"><a href="#bib-gregg2016" title="Brendan Gregg. The Flame Graph. Communications of the ACM. Vol. 59. No. 6. pp. 48--57. 2016." onclick="showChapterAndScroll('__bibliography__', 'bib-gregg2016'); return false;">[Brendan, 2016]</a></sup></span> and speedscope.</li>
   <li><strong>Low overhead</strong>: Default 1000 Hz sampling adds &lt; 0.2% overhead, suitable for production use.</li>
 </ul>
 
@@ -1427,7 +1463,7 @@ Run 'sperf help' for full documentation
 
 <h2 id="03-cli-usage--sperf-stat">3.1 sperf stat</h2>
 
-<p><code>sperf stat</code> is the quickest way to get a performance overview. It runs your command with wall-mode profiling and prints a summary to stderr.</p>
+<p><span id="03-cli-usage--idx-0"><code>sperf stat</code></span> is the quickest way to get a performance overview. It runs your command with <span id="03-cli-usage--idx-1">wall</span>-mode profiling and prints a summary to stderr.</p>
 
 <pre><code class="language-bash">sperf stat ruby my_app.rb
 </code></pre>
@@ -1535,7 +1571,7 @@ end
 
 <h2 id="03-cli-usage--sperf-record">3.2 sperf record</h2>
 
-<p><code>sperf record</code> profiles a command and saves the result to a file. This is the primary way to capture profiles for detailed analysis.</p>
+<p><span id="03-cli-usage--idx-2"><code>sperf record</code></span> profiles a command and saves the result to a file. This is the primary way to capture profiles for detailed analysis.</p>
 
 <pre><code class="language-bash">sperf record ruby my_app.rb
 </code></pre>
@@ -1554,8 +1590,8 @@ end
 <p>sperf supports two profiling modes:</p>
 
 <ul>
-  <li><strong>cpu</strong> (default): Measures per-thread CPU time. Best for finding functions that consume CPU cycles. Ignores time spent sleeping, in I/O, or waiting for the GVL.</li>
-  <li><strong>wall</strong>: Measures wall-clock time. Best for finding where wall time goes, including I/O, sleep, and GVL contention.</li>
+  <li><strong><span id="03-cli-usage--idx-3">cpu</span></strong> (default): Measures per-thread CPU time. Best for finding functions that consume CPU cycles. Ignores time spent sleeping, in I/O, or waiting for the GVL.</li>
+  <li><strong><span id="03-cli-usage--idx-4">wall</span></strong>: Measures wall-clock time. Best for finding where wall time goes, including I/O, sleep, and GVL contention.</li>
 </ul>
 
 <pre><code class="language-bash"># CPU mode (default)
@@ -1684,7 +1720,7 @@ Cumulative:
 
 <h2 id="03-cli-usage--sperf-report">3.3 sperf report</h2>
 
-<p><code>sperf report</code> opens a pprof profile for analysis. It wraps <code>go tool pprof</code> and requires Go to be installed.</p>
+<p><span id="03-cli-usage--idx-5"><code>sperf report</code></span> opens a pprof profile for analysis. It wraps <code>go tool pprof</code> and requires Go to be installed.</p>
 
 <pre><code class="language-bash"># Open interactive web UI (default)
 sperf report
@@ -1699,9 +1735,23 @@ sperf report --top
 sperf report --text
 </code></pre>
 
-<p>The default behavior opens an interactive web UI in your browser with flame graphs, top function views, and call graph visualizations powered by <span id="03-cli-usage--cite-0">pprof<sup class="cite-ref"><a href="#bib-ren2010" title="Gang Ren and Eric Tune and Tipp Moseley and Yixin Shi and Silvius Rus and Robert Hundt. Google-Wide Profiling: A Continuous Profiling Infrastructure for Data Centers. IEEE Micro. Vol. 30. No. 4. pp. 65--79. 2010." onclick="showChapterAndScroll('__bibliography__', 'bib-ren2010'); return false;">[Gang, 2010]</a></sup></span>.</p>
+<h3 id="03-cli-usage--example-top-and-text-output">3.3.1 Example: Top and text output</h3>
 
-<h3 id="03-cli-usage--report-options">3.3.1 report options</h3>
+<p>Using the <code>fib.rb</code> profile recorded earlier:</p>
+
+<pre><code class="language-bash">sperf report --top sperf.data
+</code></pre>
+
+<pre><code>Type: cpu
+Showing nodes accounting for 577.31ms, 100% of 577.31ms total
+      flat  flat%   sum%        cum   cum%
+  577.31ms   100%   100%   577.31ms   100%  Object#fib
+         0     0%   100%   577.31ms   100%  &lt;main&gt;
+</code></pre>
+
+<p>The default behavior (without <code>--top</code> or <code>--text</code>) opens an interactive web UI in your browser with flame graphs, top function views, and call graph visualizations powered by <span id="03-cli-usage--cite-0">pprof<sup class="cite-ref"><a href="#bib-ren2010" title="Gang Ren and Eric Tune and Tipp Moseley and Yixin Shi and Silvius Rus and Robert Hundt. Google-Wide Profiling: A Continuous Profiling Infrastructure for Data Centers. IEEE Micro. Vol. 30. No. 4. pp. 65--79. 2010." onclick="showChapterAndScroll('__bibliography__', 'bib-ren2010'); return false;">[Gang, 2010]</a></sup></span>.</p>
+
+<h3 id="03-cli-usage--report-options">3.3.2 report options</h3>
 
 <table>
   <thead>
@@ -1728,7 +1778,7 @@ sperf report --text
 
 <h2 id="03-cli-usage--sperf-diff">3.4 sperf diff</h2>
 
-<p><code>sperf diff</code> compares two pprof profiles, showing the difference (target - base). This is useful for measuring the impact of optimizations.</p>
+<p><span id="03-cli-usage--idx-6"><code>sperf diff</code></span> compares two pprof profiles, showing the difference (target - base). This is useful for measuring the impact of optimizations.</p>
 
 <pre><code class="language-bash"># Open diff in browser
 sperf diff before.pb.gz after.pb.gz
@@ -1778,7 +1828,7 @@ sperf diff before.pb.gz after.pb.gz
 
 <h3 id="04-library-usage--block-form-recommended">4.1.1 Block form (recommended)</h3>
 
-<p>The simplest way to use sperf is with the block form of <code>Sperf.start</code>. It profiles the block and returns the profiling data:</p>
+<p>The simplest way to use sperf is with the block form of <span id="04-library-usage--idx-0"><code>Sperf.start</code></span>. It profiles the block and returns the profiling data:</p>
 
 <pre><code class="language-ruby">require "sperf"
 
@@ -1833,7 +1883,7 @@ Sperf.start(frequency: 1000, mode: :wall)
 data = Sperf.stop
 </code></pre>
 
-<p><code>Sperf.stop</code> returns the data hash, or <code>nil</code> if the profiler was not running.</p>
+<p><span id="04-library-usage--idx-1"><code>Sperf.stop</code></span> returns the data hash, or <code>nil</code> if the profiler was not running.</p>
 
 <h2 id="04-library-usage--sperfstart-parameters">4.2 Sperf.start parameters</h2>
 
@@ -1910,7 +1960,7 @@ data = Sperf.stop
 
 <h2 id="04-library-usage--sperfsave">4.4 Sperf.save</h2>
 
-<p><code>Sperf.save</code> writes profiling data to a file in any supported format:</p>
+<p><span id="04-library-usage--idx-2"><code>Sperf.save</code></span> writes profiling data to a file in any supported format:</p>
 
 <pre><code class="language-ruby">Sperf.save("profile.pb.gz", data)        # pprof format
 Sperf.save("profile.collapsed", data)    # collapsed stacks
@@ -2021,7 +2071,7 @@ Sperf.save("profile.collapsed", data)
 
 <h2 id="05-output-formats--pprof-default">5.1 pprof (default)</h2>
 
-<p>The pprof format is a gzip-compressed Protocol Buffers binary. This is the standard format used by Go’s pprof tooling and is the default output of sperf.</p>
+<p>The <span id="05-output-formats--idx-0">pprof</span> format is a gzip-compressed Protocol Buffers binary. This is the standard format used by Go’s pprof tooling and is the default output of sperf.</p>
 
 <p><strong>Extension convention</strong>: <code>.pb.gz</code></p>
 
@@ -2048,7 +2098,7 @@ go tool pprof -flame profile.pb.gz
 
 <h2 id="05-output-formats--collapsed-stacks">5.2 Collapsed stacks</h2>
 
-<p>The collapsed stacks format is a plain text format with one line per unique stack trace. Each line contains a semicolon-separated stack (bottom-to-top) followed by a space and the weight in nanoseconds.</p>
+<p>The <span id="05-output-formats--idx-1">collapsed stacks</span> format is a plain text format with one line per unique stack trace. Each line contains a semicolon-separated stack (bottom-to-top) followed by a space and the weight in nanoseconds.</p>
 
 <p><strong>Extension convention</strong>: <code>.collapsed</code></p>
 
@@ -2221,8 +2271,8 @@ Cumulative:
 <p>Understanding the difference between flat and cumulative time is essential for effective profiling, as described in classic profiling literature <span id="06-interpreting-results--cite-0">gprof<sup class="cite-ref"><a href="#bib-graham1982" title="Susan L. Graham and Peter B. Kessler and Marshall K. McKusick. gprof: A Call Graph Execution Profiler. ACM. pp. 120--126. 1982." onclick="showChapterAndScroll('__bibliography__', 'bib-graham1982'); return false;">[Susan, 1982]</a></sup></span>.</p>
 
 <ul>
-  <li><strong>Flat time</strong>: Time attributed directly to a function — it was the leaf (deepest frame) in the sample. High flat time means the function itself is doing expensive work.</li>
-  <li><strong>Cumulative time</strong>: Time for all samples where the function appears anywhere in the stack. High cumulative time means the function (or something it calls) is expensive.</li>
+  <li><strong><span id="06-interpreting-results--idx-0">Flat time</span></strong>: Time attributed directly to a function — it was the leaf (deepest frame) in the sample. High flat time means the function itself is doing expensive work.</li>
+  <li><strong><span id="06-interpreting-results--idx-1">Cumulative time</span></strong>: Time for all samples where the function appears anywhere in the stack. High cumulative time means the function (or something it calls) is expensive.</li>
 </ul>
 
 <div class="mermaid">
@@ -2262,9 +2312,9 @@ graph TD
 
 <p><strong>Mode</strong>: wall only</p>
 
-<p>Time the thread spent off the GVL — during I/O operations, <code>sleep</code>, or C extensions that release the GVL. This time is attributed to the stack captured at the SUSPENDED event (when the thread released the GVL).</p>
+<p>Time the thread spent off the GVL — during I/O operations, <code>sleep</code>, or C extensions that release the <span id="06-interpreting-results--idx-2">GVL</span>. This is one of the <span id="06-interpreting-results--idx-3">synthetic frames</span>. This time is attributed to the stack captured at the SUSPENDED event (when the thread released the GVL).</p>
 
-<p>High <code>[GVL blocked]</code> time indicates your program is I/O bound. Look at the cumulative view to find which functions are triggering the I/O.</p>
+<p>High <span id="06-interpreting-results--idx-4"><code>[GVL blocked]</code></span> time indicates your program is I/O bound. Look at the cumulative view to find which functions are triggering the I/O.</p>
 
 <h3 id="06-interpreting-results--gvl-wait">6.3.2 [GVL wait]</h3>
 
@@ -2272,7 +2322,7 @@ graph TD
 
 <p>Time the thread spent waiting to reacquire the GVL after becoming ready. This indicates GVL contention — another thread is holding the GVL while this thread wants to run.</p>
 
-<p>High <code>[GVL wait]</code> time means your threads are serialized on the GVL. Consider reducing GVL-holding work, using Ractors, or moving work to child processes.</p>
+<p>High <span id="06-interpreting-results--idx-5"><code>[GVL wait]</code></span> time means your threads are serialized on the GVL. Consider reducing GVL-holding work, using Ractors, or moving work to child processes.</p>
 
 <h3 id="06-interpreting-results--gc-marking">6.3.3 [GC marking]</h3>
 
@@ -2280,7 +2330,7 @@ graph TD
 
 <p>Time spent in the GC marking phase. Always measured in wall time. Attributed to the stack that triggered GC.</p>
 
-<p>High <code>[GC marking]</code> time means too many live objects. Reduce the number of long-lived allocations.</p>
+<p>High <span id="06-interpreting-results--idx-6"><code>[GC marking]</code></span> time means too many live objects. Reduce the number of long-lived allocations.</p>
 
 <h3 id="06-interpreting-results--gc-sweeping">6.3.4 [GC sweeping]</h3>
 
@@ -2288,7 +2338,7 @@ graph TD
 
 <p>Time spent in the GC sweeping phase. Always measured in wall time. Attributed to the stack that triggered GC.</p>
 
-<p>High <code>[GC sweeping]</code> time means too many short-lived objects. Consider reusing objects or using object pools.</p>
+<p>High <span id="06-interpreting-results--idx-7"><code>[GC sweeping]</code></span> time means too many short-lived objects. Consider reusing objects or using object pools.</p>
 
 <h2 id="06-interpreting-results--diagnosing-common-problems">6.4 Diagnosing common problems</h2>
 
@@ -2432,7 +2482,7 @@ graph TD
 
 <h2 id="07-internals--global-profiler-state">7.2 Global profiler state</h2>
 
-<p>sperf uses a single global <code>sperf_profiler_t</code> struct. Only one profiling session can be active at a time. The struct holds:</p>
+<p>sperf uses a single global <code>sperf_profiler_t</code> struct. Only one profiling session can be active at a time (<span id="07-internals--idx-0">single session</span> limitation). The struct holds:</p>
 
 <ul>
   <li>Timer configuration (frequency, mode, signal number)</li>
@@ -2600,7 +2650,7 @@ stateDiagram-v2
 
 <h2 id="07-internals--deferred-string-resolution">7.7 Deferred string resolution</h2>
 
-<p>During sampling, sperf stores raw frame <code>VALUE</code>s (Ruby internal object references) in the frame pool — not strings. This keeps the hot path allocation-free and fast.</p>
+<p>During sampling, sperf stores raw frame <code>VALUE</code>s (Ruby internal object references) in the <span id="07-internals--idx-1">frame pool</span> — not strings. This <span id="07-internals--idx-2">deferred string resolution</span> keeps the hot path allocation-free and fast.</p>
 
 <p>String resolution happens at stop time:</p>
 
@@ -2636,7 +2686,7 @@ stateDiagram-v2
 
 <h2 id="07-internals--fork-safety">7.10 Fork safety</h2>
 
-<p>sperf registers a <code>pthread_atfork</code> child handler that silently stops profiling in the forked child process:</p>
+<p>sperf registers a <code>pthread_atfork</code> child handler that silently stops profiling in the forked child process (<span id="07-internals--idx-3">fork safety</span>):</p>
 
 <ul>
   <li>Clears the timer/signal state</li>
@@ -2903,11 +2953,124 @@ Sperf.save("profile.txt", data)
       <li id="bib-mytkowicz2010"><span class="bib-label">[Todd, 2010]</span> Todd Mytkowicz and Amer Diwan and Matthias Hauswirth and Peter F. Sweeney. "Evaluating the Accuracy of Java Profilers". In <em>Proceedings of the 31st ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI '10)</em>, pp. 187--197. 2010. <a href="https://doi.org/10.1145/1806596.1806618" target="_blank" rel="noopener">DOI</a></li>
     </ul>
   </section>
+  <section class="chapter index-chapter" id="chapter-__index__" style="display: none;">
+    <h1>Index</h1>
+    <div class="index-group">
+      <h2 class="index-letter">C</h2>
+      <dl class="index-entries">
+        <dt>collapsed stacks</dt>
+        <dd><a href="#01-introduction--idx-8" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-8'); return false;">1. Introduction</a></dd>
+        <dd><a href="#01-introduction--idx-16" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-16'); return false;">1. Introduction</a></dd>
+        <dd><a href="#05-output-formats--idx-1" onclick="showChapterAndScroll('05-output-formats', '05-output-formats--idx-1'); return false;">5. Output Formats</a></dd>
+        <dt>cpu mode</dt>
+        <dd><a href="#03-cli-usage--idx-3" onclick="showChapterAndScroll('03-cli-usage', '03-cli-usage--idx-3'); return false;">3. CLI Usage</a></dd>
+        <dt>cumulative time</dt>
+        <dd><a href="#06-interpreting-results--idx-1" onclick="showChapterAndScroll('06-interpreting-results', '06-interpreting-results--idx-1'); return false;">6. Interpreting Results</a></dd>
+      </dl>
+    </div>
+    <div class="index-group">
+      <h2 class="index-letter">D</h2>
+      <dl class="index-entries">
+        <dt>deferred string resolution</dt>
+        <dd><a href="#07-internals--idx-2" onclick="showChapterAndScroll('07-internals', '07-internals--idx-2'); return false;">7. Internals</a></dd>
+      </dl>
+    </div>
+    <div class="index-group">
+      <h2 class="index-letter">F</h2>
+      <dl class="index-entries">
+        <dt>flat time</dt>
+        <dd><a href="#06-interpreting-results--idx-0" onclick="showChapterAndScroll('06-interpreting-results', '06-interpreting-results--idx-0'); return false;">6. Interpreting Results</a></dd>
+        <dt>fork safety</dt>
+        <dd><a href="#07-internals--idx-3" onclick="showChapterAndScroll('07-internals', '07-internals--idx-3'); return false;">7. Internals</a></dd>
+        <dt>frame pool</dt>
+        <dd><a href="#07-internals--idx-1" onclick="showChapterAndScroll('07-internals', '07-internals--idx-1'); return false;">7. Internals</a></dd>
+      </dl>
+    </div>
+    <div class="index-group">
+      <h2 class="index-letter">G</h2>
+      <dl class="index-entries">
+        <dt>GVL</dt>
+        <dd><a href="#01-introduction--idx-3" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-3'); return false;">1. Introduction</a></dd>
+        <dd><a href="#06-interpreting-results--idx-2" onclick="showChapterAndScroll('06-interpreting-results', '06-interpreting-results--idx-2'); return false;">6. Interpreting Results</a></dd>
+      </dl>
+    </div>
+    <div class="index-group">
+      <h2 class="index-letter">P</h2>
+      <dl class="index-entries">
+        <dt>postponed job</dt>
+        <dd><a href="#01-introduction--idx-9" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-9'); return false;">1. Introduction</a></dd>
+        <dt>pprof</dt>
+        <dd><a href="#01-introduction--idx-7" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-7'); return false;">1. Introduction</a></dd>
+        <dd><a href="#01-introduction--idx-15" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-15'); return false;">1. Introduction</a></dd>
+        <dd><a href="#05-output-formats--idx-0" onclick="showChapterAndScroll('05-output-formats', '05-output-formats--idx-0'); return false;">5. Output Formats</a></dd>
+      </dl>
+    </div>
+    <div class="index-group">
+      <h2 class="index-letter">S</h2>
+      <dl class="index-entries">
+        <dt>Sperf.save</dt>
+        <dd><a href="#04-library-usage--idx-2" onclick="showChapterAndScroll('04-library-usage', '04-library-usage--idx-2'); return false;">4. Ruby API</a></dd>
+        <dt>Sperf.start</dt>
+        <dd><a href="#04-library-usage--idx-0" onclick="showChapterAndScroll('04-library-usage', '04-library-usage--idx-0'); return false;">4. Ruby API</a></dd>
+        <dt>Sperf.stop</dt>
+        <dd><a href="#04-library-usage--idx-1" onclick="showChapterAndScroll('04-library-usage', '04-library-usage--idx-1'); return false;">4. Ruby API</a></dd>
+        <dt>safepoint</dt>
+        <dd><a href="#01-introduction--idx-1" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-1'); return false;">1. Introduction</a></dd>
+        <dd><a href="#01-introduction--idx-10" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-10'); return false;">1. Introduction</a></dd>
+        <dt>safepoint bias</dt>
+        <dd><a href="#01-introduction--idx-5" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-5'); return false;">1. Introduction</a></dd>
+        <dd><a href="#01-introduction--idx-6" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-6'); return false;">1. Introduction</a></dd>
+        <dt>sampling</dt>
+        <dd><a href="#01-introduction--idx-2" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-2'); return false;">1. Introduction</a></dd>
+        <dt>single session</dt>
+        <dd><a href="#07-internals--idx-0" onclick="showChapterAndScroll('07-internals', '07-internals--idx-0'); return false;">7. Internals</a></dd>
+        <dt>sperf</dt>
+        <dd><a href="#01-introduction--idx-0" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-0'); return false;">1. Introduction</a></dd>
+        <dt>sperf diff</dt>
+        <dd><a href="#03-cli-usage--idx-6" onclick="showChapterAndScroll('03-cli-usage', '03-cli-usage--idx-6'); return false;">3. CLI Usage</a></dd>
+        <dt>sperf record</dt>
+        <dd><a href="#01-introduction--idx-13" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-13'); return false;">1. Introduction</a></dd>
+        <dd><a href="#03-cli-usage--idx-2" onclick="showChapterAndScroll('03-cli-usage', '03-cli-usage--idx-2'); return false;">3. CLI Usage</a></dd>
+        <dt>sperf report</dt>
+        <dd><a href="#01-introduction--idx-14" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-14'); return false;">1. Introduction</a></dd>
+        <dd><a href="#03-cli-usage--idx-5" onclick="showChapterAndScroll('03-cli-usage', '03-cli-usage--idx-5'); return false;">3. CLI Usage</a></dd>
+        <dt>sperf stat</dt>
+        <dd><a href="#01-introduction--idx-12" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-12'); return false;">1. Introduction</a></dd>
+        <dd><a href="#03-cli-usage--idx-0" onclick="showChapterAndScroll('03-cli-usage', '03-cli-usage--idx-0'); return false;">3. CLI Usage</a></dd>
+        <dt>synthetic frames</dt>
+        <dd><a href="#01-introduction--idx-11" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-11'); return false;">1. Introduction</a></dd>
+        <dd><a href="#06-interpreting-results--idx-3" onclick="showChapterAndScroll('06-interpreting-results', '06-interpreting-results--idx-3'); return false;">6. Interpreting Results</a></dd>
+      </dl>
+    </div>
+    <div class="index-group">
+      <h2 class="index-letter">W</h2>
+      <dl class="index-entries">
+        <dt>wall mode</dt>
+        <dd><a href="#03-cli-usage--idx-1" onclick="showChapterAndScroll('03-cli-usage', '03-cli-usage--idx-1'); return false;">3. CLI Usage</a></dd>
+        <dd><a href="#03-cli-usage--idx-4" onclick="showChapterAndScroll('03-cli-usage', '03-cli-usage--idx-4'); return false;">3. CLI Usage</a></dd>
+        <dt>weight</dt>
+        <dd><a href="#01-introduction--idx-4" onclick="showChapterAndScroll('01-introduction', '01-introduction--idx-4'); return false;">1. Introduction</a></dd>
+      </dl>
+    </div>
+    <div class="index-group">
+      <h2 class="index-letter">\</h2>
+      <dl class="index-entries">
+        <dt>\[GC marking\]</dt>
+        <dd><a href="#06-interpreting-results--idx-6" onclick="showChapterAndScroll('06-interpreting-results', '06-interpreting-results--idx-6'); return false;">6. Interpreting Results</a></dd>
+        <dt>\[GC sweeping\]</dt>
+        <dd><a href="#06-interpreting-results--idx-7" onclick="showChapterAndScroll('06-interpreting-results', '06-interpreting-results--idx-7'); return false;">6. Interpreting Results</a></dd>
+        <dt>\[GVL blocked\]</dt>
+        <dd><a href="#06-interpreting-results--idx-4" onclick="showChapterAndScroll('06-interpreting-results', '06-interpreting-results--idx-4'); return false;">6. Interpreting Results</a></dd>
+        <dt>\[GVL wait\]</dt>
+        <dd><a href="#06-interpreting-results--idx-5" onclick="showChapterAndScroll('06-interpreting-results', '06-interpreting-results--idx-5'); return false;">6. Interpreting Results</a></dd>
+      </dl>
+    </div>
+  </section>
 </main>
 
 <script>
 (function() {
-  var chapters = ["cover", "part1", "01-introduction", "02-installation", "part2", "03-cli-usage", "04-library-usage", "05-output-formats", "part3", "06-interpreting-results", "07-internals", "a1-reference", "__bibliography__"];
+  var chapters = ["cover", "part1", "01-introduction", "02-installation", "part2", "03-cli-usage", "04-library-usage", "05-output-formats", "part3", "06-interpreting-results", "07-internals", "a1-reference", "__bibliography__", "__index__"];
   var currentChapter = null;
 
   var navigating = false; // flag to suppress pushState during popstate/initial load

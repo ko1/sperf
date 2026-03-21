@@ -1,0 +1,39 @@
+{
+  "id": "9c5e06c1-645c-486a-afd5-ede701ae21d9",
+  "status": "applied",
+  "created_at": "2026-03-21T03:03:37Z",
+  "context": {
+    "chapter_slug": "01-introduction",
+    "heading_id": "01-introduction--the-safepoint-bias-problem",
+    "selected_text": "All Ruby sampling profilers must collect backtraces at safepoints",
+    "source_file": "/home/ko1/app/sperf/docs/manual_src/01-introduction.md"
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "違うよ。signal 時に取得するのがほとんどだよ",
+      "timestamp": "2026-03-21T03:03:37Z"
+    },
+    {
+      "role": "assistant",
+      "content": "ご指摘の通りです。ほとんどの Ruby プロファイラはシグナルハンドラ内で `rb_profile_frames` を呼び出してバックトレースを取得しています。sperf が postponed job を使ってセーフポイントで取得するのは sperf 固有の設計であり、「すべての Ruby サンプリングプロファイラがセーフポイントで取得する」というのは不正確です。\n\n以下のパッチで、sperf の設計に焦点を当てた正確な説明に修正します。\n\n<patch file=\"01-introduction.md\">\n<<<\n### The safepoint bias problem\n\nAll Ruby sampling profilers must collect backtraces at safepoints — points where the VM is in a consistent state. When a timer fires between safepoints, the actual sample is delayed until the next safepoint. Traditional profilers count each sample equally (weight = 1), which means a sample that was delayed by a long-running C method gets the same weight as one taken immediately.\n\nThis is the [safepoint bias](#cite:mytkowicz2010) problem: functions that happen to be running when the thread reaches a safepoint appear more often than they should, while functions between safepoints are under-represented.\n===\n### The safepoint bias problem\n\nMost Ruby sampling profilers collect backtraces directly in the signal handler by calling `rb_profile_frames`. sperf takes a different approach: it uses the postponed job mechanism (`rb_postponed_job`), which defers backtrace collection to the next safepoint — a point where the VM is in a consistent state. When a timer fires between safepoints, the actual sample is delayed until the next safepoint.\n\nIf each sample were counted equally (weight = 1), a sample delayed by a long-running C method would get the same weight as one taken immediately. This is the [safepoint bias](#cite:mytkowicz2010) problem: functions that happen to be running when the thread reaches a safepoint appear more often than they should, while functions between safepoints are under-represented.\n>>>\n</patch>",
+      "timestamp": "2026-03-21T03:04:10Z"
+    },
+    {
+      "role": "user",
+      "content": "safepoint の利点も言わないと、なんでシグナルじゃダメなのかわかんない",
+      "timestamp": "2026-03-21T03:05:08Z"
+    },
+    {
+      "role": "assistant",
+      "content": "おっしゃる通りです。シグナルハンドラで直接取得する方式と比べて、なぜ sperf が postponed job（セーフポイント）方式を採用しているのか、その利点を説明しないと読者に伝わりません。\n\nセーフポイント方式の利点は、VM の内部状態に依存せず安全にバックトレースを取得できること（`rb_profile_frames` はシグナルハンドラから呼ぶと async-signal-safe でない可能性がある）、そして postponed job は Ruby VM が公式に提供する仕組みであることです。\n\n以下のパッチで、シグナルハンドラ方式との対比と、セーフポイント方式の利点・トレードオフを説明します。\n\n<patch file=\"01-introduction.md\">\n<<<\n### The safepoint bias problem\n\nAll Ruby sampling profilers must collect backtraces at safepoints — points where the VM is in a consistent state. When a timer fires between safepoints, the actual sample is delayed until the next safepoint. Traditional profilers count each sample equally (weight = 1), which means a sample that was delayed by a long-running C method gets the same weight as one taken immediately.\n\nThis is the [safepoint bias](#cite:mytkowicz2010) problem: functions that happen to be running when the thread reaches a safepoint appear more often than they should, while functions between safepoints are under-represented.\n===\n### The safepoint bias problem\n\nMost Ruby sampling profilers collect backtraces by calling `rb_profile_frames` directly in the signal handler. This approach yields backtraces at the actual signal timing, but relies on undocumented internal VM state — `rb_profile_frames` is not guaranteed to be async-signal-safe, and the results can be unreliable if the VM is in the middle of updating its internal structures.\n\nsperf takes a different approach: it uses the postponed job mechanism (`rb_postponed_job`), which is the Ruby VM's official API for safely deferring work from signal handlers. Backtrace collection is deferred to the next [safepoint](#index) — a point where the VM is in a consistent state and `rb_profile_frames` can return reliable results. The trade-off is that when a timer fires between safepoints, the actual sample is delayed until the next safepoint.\n\nIf each sample were counted equally (weight = 1), a sample delayed by a long-running C method would get the same weight as one taken immediately. This is the [safepoint bias](#cite:mytkowicz2010) problem: functions that happen to be running when the thread reaches a safepoint appear more often than they should, while functions between safepoints are under-represented.\n>>>\n</patch>\n\nこれで、(1) 多くのプロファイラがシグナルハンドラで直接取得していること、(2) sperf がセーフポイント方式を選んだ理由（安全性・公式API）、(3) そのトレードオフとしてセーフポイントバイアスが生じること、という流れが明確になります。",
+      "timestamp": "2026-03-21T03:05:30Z"
+    },
+    {
+      "role": "assistant",
+      "content": "Applied 1/1 patch(es) and rebuilt.",
+      "timestamp": "2026-03-21T03:06:06Z"
+    }
+  ],
+  "file_path": "/home/ko1/app/sperf/docs/manual_src/.ligarb/reviews/9c5e06c1-645c-486a-afd5-ede701ae21d9.json"
+}

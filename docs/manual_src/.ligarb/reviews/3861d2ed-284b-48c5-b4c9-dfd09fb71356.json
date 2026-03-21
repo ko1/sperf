@@ -1,0 +1,29 @@
+{
+  "id": "3861d2ed-284b-48c5-b4c9-dfd09fb71356",
+  "status": "applied",
+  "created_at": "2026-03-21T03:02:02Z",
+  "context": {
+    "chapter_slug": "cover",
+    "heading_id": "cover--sperf-guide",
+    "selected_text": "sperf guide",
+    "source_file": "/home/ko1/app/sperf/docs/manual_src/cover.md"
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "../logo.svg をカバーに置いといてくれますか",
+      "timestamp": "2026-03-21T03:02:02Z"
+    },
+    {
+      "role": "assistant",
+      "content": "ロゴをコピーしました。カバーに画像を追加するパッチです：\n\n<patch file=\"cover.md\">\n<<<\n# sperf guide\n\nA safepoint-based sampling performance profiler for Ruby.\n===\n# sperf guide\n\n![sperf logo](images/logo.svg)\n\nA safepoint-based sampling performance profiler for Ruby.\n>>>\n</patch>",
+      "timestamp": "2026-03-21T03:02:26Z"
+    },
+    {
+      "role": "assistant",
+      "content": "Applied 1/1 patch(es) and rebuilt.",
+      "timestamp": "2026-03-21T03:02:35Z"
+    }
+  ],
+  "file_path": "/home/ko1/app/sperf/docs/manual_src/.ligarb/reviews/3861d2ed-284b-48c5-b4c9-dfd09fb71356.json"
+}

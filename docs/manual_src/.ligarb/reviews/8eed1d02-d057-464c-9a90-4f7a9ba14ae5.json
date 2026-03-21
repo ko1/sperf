@@ -1,0 +1,29 @@
+{
+  "id": "8eed1d02-d057-464c-9a90-4f7a9ba14ae5",
+  "status": "applied",
+  "created_at": "2026-03-21T03:09:10Z",
+  "context": {
+    "chapter_slug": "03-cli-usage",
+    "heading_id": "03-cli-usage--sperf-report",
+    "selected_text": "sperf report --top",
+    "source_file": "/home/ko1/app/sperf/docs/manual_src/03-cli-usage.md"
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "text なら実際に実行した結果も欲しい。この後がいいかな。",
+      "timestamp": "2026-03-21T03:09:10Z"
+    },
+    {
+      "role": "assistant",
+      "content": "`sperf report --top` と `sperf report --text` の実行例を追加します。\n\n<patch file=\"03-cli-usage.md\">\n<<<\nThe default behavior opens an interactive web UI in your browser with flame graphs, top function views, and call graph visualizations powered by [pprof](#cite:ren2010).\n===\n### Example: Top and text output\n\nUsing the `fib.rb` profile recorded earlier:\n\n```bash\nsperf report --top sperf.data\n```\n\n```\nType: cpu\nShowing nodes accounting for 577.31ms, 100% of 577.31ms total\n      flat  flat%   sum%        cum   cum%\n  577.31ms   100%   100%   577.31ms   100%  Object#fib\n         0     0%   100%   577.31ms   100%  <main>\n```\n\nThe default behavior (without `--top` or `--text`) opens an interactive web UI in your browser with flame graphs, top function views, and call graph visualizations powered by [pprof](#cite:ren2010).\n>>>\n</patch>",
+      "timestamp": "2026-03-21T03:09:53Z"
+    },
+    {
+      "role": "assistant",
+      "content": "Applied 1/1 patch(es) and rebuilt.",
+      "timestamp": "2026-03-21T03:10:38Z"
+    }
+  ],
+  "file_path": "/home/ko1/app/sperf/docs/manual_src/.ligarb/reviews/8eed1d02-d057-464c-9a90-4f7a9ba14ae5.json"
+}

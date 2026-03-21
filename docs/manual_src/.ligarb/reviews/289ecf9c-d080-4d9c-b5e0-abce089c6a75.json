@@ -1,0 +1,29 @@
+{
+  "id": "289ecf9c-d080-4d9c-b5e0-abce089c6a75",
+  "status": "applied",
+  "created_at": "2026-03-21T03:24:12Z",
+  "context": {
+    "chapter_slug": "01-introduction",
+    "heading_id": "01-introduction--what-is-sperf",
+    "selected_text": "1.1 What is sperf?",
+    "source_file": "/home/ko1/app/sperf/docs/manual_src/01-introduction.md"
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "このツールを使う理由を紹介するため、利点欠点をまとめてほしいです。subsection かどうかはお任せ",
+      "timestamp": "2026-03-21T03:24:12Z"
+    },
+    {
+      "role": "assistant",
+      "content": "「What is sperf?」セクションの直後に、利点・制限をまとめたサブセクションを追加します。既存の「Other advantages」と重複しすぎないよう、簡潔な一覧にします。\n\n<patch file=\"01-introduction.md\">\n<<<\nsperf is inspired by Linux [perf](#cite:demelo2010), providing a familiar CLI interface with subcommands like `record`, `stat`, and `report`.\n\n## Why another profiler?\n===\nsperf is inspired by Linux [perf](#cite:demelo2010), providing a familiar CLI interface with subcommands like `record`, `stat`, and `report`.\n\n### Advantages\n\n- **Accurate profiling**: Time-delta weighting corrects [safepoint bias](#index:safepoint bias), producing results closer to real time distribution than traditional count-based profilers.\n- **GVL / GC visibility**: In wall mode, tracks off-GVL blocking, GVL contention, and GC marking/sweeping as distinct frames — no separate tool needed.\n- **Standard output formats**: Outputs [pprof](#index:pprof) protobuf (compatible with `go tool pprof`), [collapsed stacks](#index:collapsed stacks) (for flame graphs / speedscope), and human-readable text.\n- **Low overhead**: Default 1000 Hz sampling adds < 0.2% overhead, suitable for production.\n- **Simple CLI**: `sperf stat` for a quick overview, `sperf record` + `sperf report` for detailed analysis.\n\n### Limitations\n\n- **Ruby 3.4+ only**: Requires APIs introduced in Ruby 3.4.\n- **POSIX only**: Linux and macOS. Windows is not supported.\n- **Method-level granularity**: No line-number resolution — profiles show method names only.\n- **Single session**: Only one profiling session can be active at a time (global state in the C extension).\n- **Safepoint latency**: Samples are still deferred to safepoints. The time-delta weighting corrects the *bias* but cannot recover the exact interrupted instruction pointer.\n\n## Why another profiler?\n>>>\n</patch>\n\n「Advantages」は既存の \"Other advantages\" セクション（safepoint bias の説明後にある箇条書き）と一部重なりますが、「What is sperf?」直下に全体像を把握できるまとめがあると、読者が先に進むかどうか判断しやすくなります。「Limitations」では、スペックだけでなくアーキテクチャ上の制約（method-level、single session、safepoint latency）も明示しました。",
+      "timestamp": "2026-03-21T03:24:38Z"
+    },
+    {
+      "role": "assistant",
+      "content": "Applied 1/1 patch(es) and rebuilt.",
+      "timestamp": "2026-03-21T03:24:53Z"
+    }
+  ],
+  "file_path": "/home/ko1/app/sperf/docs/manual_src/.ligarb/reviews/289ecf9c-d080-4d9c-b5e0-abce089c6a75.json"
+}
