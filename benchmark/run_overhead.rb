@@ -2,8 +2,8 @@
 # frozen_string_literal: true
 
 # Re-run overhead comparison benchmarks.
-# Runs each profiler/mode combination N times sequentially,
-# saves raw data to data/overhead_raw.tsv.
+# Interleaves configs within each round so all configs experience
+# similar system conditions. Saves raw data to data/overhead_raw.tsv.
 
 ITERATIONS = Integer(ENV.fetch("ITERATIONS", "10"))
 FREQUENCY = 1000
@@ -31,12 +31,13 @@ profrun = File.join(__dir__, "profrun.rb")
 File.open(RAW_FILE, "w") do |f|
   f.puts "profiler\tmode\titeration\telapsed_ms\tsampling_count\tsampling_time_ns"
 
-  CONFIGS.each do |cfg|
-    prof = cfg[:profiler]
-    mode = cfg[:mode]
-    $stderr.puts "=== #{prof} #{mode} (#{ITERATIONS} iterations) ==="
+  ITERATIONS.times do |i|
+    $stderr.puts "=== Round #{i + 1}/#{ITERATIONS} ==="
 
-    ITERATIONS.times do |i|
+    CONFIGS.each do |cfg|
+      prof = cfg[:profiler]
+      mode = cfg[:mode]
+
       args = ["ruby", profrun, "-P", prof, "-m", mode, "-F", FREQUENCY.to_s]
       args += ["-o", TMP_OUT] unless prof == "none"
       args << SCRIPT
@@ -60,12 +61,12 @@ File.open(RAW_FILE, "w") do |f|
       end
 
       unless status.success?
-        $stderr.puts "  [#{i+1}] FAILED (exit #{status.exitstatus})"
+        $stderr.puts "  #{prof} #{mode}: FAILED (exit #{status.exitstatus})"
         f.puts "#{prof}\t#{mode}\t#{i+1}\tFAILED\t\t"
         next
       end
 
-      $stderr.puts "  [#{i+1}] #{elapsed}ms"
+      $stderr.puts "  #{prof} #{mode}: #{elapsed}ms"
       f.puts "#{prof}\t#{mode}\t#{i+1}\t#{elapsed}\t#{sampling_count}\t#{sampling_time_ns}"
     end
   end

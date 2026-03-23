@@ -1,81 +1,81 @@
 profiler	mode	iteration	elapsed_ms	sampling_count	sampling_time_ns
-none	wall	1	3045.3		
-none	wall	2	2888.4		
-none	wall	3	2642.6		
-none	wall	4	2525.2		
-none	wall	5	2541.7		
-none	wall	6	2391.4		
-none	wall	7	2410.1		
-none	wall	8	2413.5		
-none	wall	9	2460.1		
-none	wall	10	2585.1		
-rperf	cpu	1	2970.2	2691	2794530
-rperf	cpu	2	2720.8	2497	2382309
-rperf	cpu	3	2867.7	2563	2646630
-rperf	cpu	4	2641.1	2357	2149712
-rperf	cpu	5	2479.2	2241	1921472
-rperf	cpu	6	2610.0	2263	1775876
-rperf	cpu	7	2568.0	2280	1896400
-rperf	cpu	8	2670.1	2374	2005994
-rperf	cpu	9	2511.2	2237	1991757
-rperf	cpu	10	2428.9	2183	1753819
-rperf	wall	1	2349.4	2152	1275329
-rperf	wall	2	2272.0	2114	1127918
-rperf	wall	3	2317.4	1996	1097124
-rperf	wall	4	2366.5	2167	1872723
-rperf	wall	5	2402.4	2219	1201670
-rperf	wall	6	2125.1	1969	1016402
-rperf	wall	7	2170.2	1989	1079064
-rperf	wall	8	2161.8	1955	1308241
-rperf	wall	9	2444.1	2200	1380050
-rperf	wall	10	2425.6	2229	1473706
-stackprof	cpu	1	2105.7		
-stackprof	cpu	2	2087.8		
-stackprof	cpu	3	2111.3		
-stackprof	cpu	4	2355.6		
-stackprof	cpu	5	2437.5		
-stackprof	cpu	6	2230.8		
-stackprof	cpu	7	2189.9		
-stackprof	cpu	8	2288.4		
-stackprof	cpu	9	2211.3		
-stackprof	cpu	10	2362.4		
-stackprof	wall	1	2196.4		
-stackprof	wall	2	2176.2		
-stackprof	wall	3	2280.9		
-stackprof	wall	4	2296.5		
-stackprof	wall	5	2206.3		
-stackprof	wall	6	2303.9		
-stackprof	wall	7	2562.5		
-stackprof	wall	8	3012.4		
-stackprof	wall	9	2741.9		
-stackprof	wall	10	2308.5		
-vernier	wall	1	2182.0		
-vernier	wall	2	2427.7		
-vernier	wall	3	2463.3		
-vernier	wall	4	2422.6		
-vernier	wall	5	2181.8		
-vernier	wall	6	2366.8		
-vernier	wall	7	2207.5		
-vernier	wall	8	2184.2		
-vernier	wall	9	2366.4		
-vernier	wall	10	2453.4		
-pf2	cpu	1	2637.7		
-pf2	cpu	2	3055.0		
-pf2	cpu	3	2512.9		
-pf2	cpu	4	2522.5		
-pf2	cpu	5	2569.2		
-pf2	cpu	6	2508.1		
-pf2	cpu	7	2521.8		
-pf2	cpu	8	2734.2		
-pf2	cpu	9	2502.6		
-pf2	cpu	10	2519.5		
-pf2	wall	1	2591.4		
-pf2	wall	2	2551.6		
-pf2	wall	3	3059.4		
-pf2	wall	4	2530.3		
-pf2	wall	5	2821.0		
-pf2	wall	6	2585.5		
-pf2	wall	7	2598.6		
-pf2	wall	8	2594.5		
-pf2	wall	9	2569.3		
-pf2	wall	10	2536.6		
+none	wall	1	2191.6		
+rperf	cpu	1	2200.9	2054	1462515
+rperf	wall	1	2369.8	2202	1226597
+stackprof	cpu	1	2174.8		
+stackprof	wall	1	2146.5		
+vernier	wall	1	2319.0		
+pf2	cpu	1	2533.2		
+pf2	wall	1	2492.7		
+none	wall	2	2421.0		
+rperf	cpu	2	2187.6	2015	1616683
+rperf	wall	2	2161.6	1952	1024637
+stackprof	cpu	2	2771.8		
+stackprof	wall	2	2135.3		
+vernier	wall	2	2081.7		
+pf2	cpu	2	2466.5		
+pf2	wall	2	2496.0		
+none	wall	3	2118.5		
+rperf	cpu	3	2150.5	2006	1382080
+rperf	wall	3	2253.4	2122	1300889
+stackprof	cpu	3	2186.9		
+stackprof	wall	3	2102.4		
+vernier	wall	3	2097.3		
+pf2	cpu	3	2719.5		
+pf2	wall	3	3234.5		
+none	wall	4	2604.6		
+rperf	cpu	4	2402.6	2215	1598783
+rperf	wall	4	2390.8	2247	1739394
+stackprof	cpu	4	2342.4		
+stackprof	wall	4	2135.4		
+vernier	wall	4	2119.1		
+pf2	cpu	4	2716.5		
+pf2	wall	4	2617.5		
+none	wall	5	2130.7		
+rperf	cpu	5	2439.2	2212	1705936
+rperf	wall	5	2571.1	2403	1376694
+stackprof	cpu	5	2298.8		
+stackprof	wall	5	2397.9		
+vernier	wall	5	2634.5		
+pf2	cpu	5	2466.6		
+pf2	wall	5	2598.3		
+none	wall	6	2170.8		
+rperf	cpu	6	2132.5	1974	1215870
+rperf	wall	6	2118.4	1948	947643
+stackprof	cpu	6	2450.1		
+stackprof	wall	6	2113.8		
+vernier	wall	6	2173.0		
+pf2	cpu	6	2690.9		
+pf2	wall	6	2556.1		
+none	wall	7	2176.6		
+rperf	cpu	7	2398.7	2258	1808541
+rperf	wall	7	2161.9	2015	1132380
+stackprof	cpu	7	2219.3		
+stackprof	wall	7	2262.9		
+vernier	wall	7	2100.6		
+pf2	cpu	7	2741.9		
+pf2	wall	7	2528.7		
+none	wall	8	2218.2		
+rperf	cpu	8	2233.7	2062	1428542
+rperf	wall	8	2164.2	2028	999602
+stackprof	cpu	8	2146.4		
+stackprof	wall	8	2204.6		
+vernier	wall	8	2345.2		
+pf2	cpu	8	2466.9		
+pf2	wall	8	2587.1		
+none	wall	9	2370.9		
+rperf	cpu	9	2145.1	1974	1363583
+rperf	wall	9	2140.9	2003	948794
+stackprof	cpu	9	2283.4		
+stackprof	wall	9	2189.7		
+vernier	wall	9	2137.2		
+pf2	cpu	9	2453.5		
+pf2	wall	9	2502.4		
+none	wall	10	2117.9		
+rperf	cpu	10	2116.6	1988	1323608
+rperf	wall	10	2174.4	2017	998061
+stackprof	cpu	10	2118.3		
+stackprof	wall	10	2127.1		
+vernier	wall	10	2165.9		
+pf2	cpu	10	2703.8		
+pf2	wall	10	2539.1		

@@ -562,37 +562,36 @@ Average error (%). Bold = <10%. ~~Struck~~ = >90%.
 
 ## Overhead Comparison
 
-Profiler overhead measured on the ratio#1 scenario (4M calls of `rw` methods with arg 0, ~2.5s baseline). All at 1000Hz. Each configuration was run 10 times. Raw data is in `data/overhead_raw.tsv`.
+Profiler overhead measured on the ratio#1 scenario (4M calls of `rw` methods with arg 0, ~2.2s baseline). All at 1000Hz. Each configuration was run 10 times with interleaved execution (all configs run once per round) to minimize the effect of system load variation. Raw data is in `data/overhead_raw.tsv`.
 
-| Profiler | Mode | Median | Mean | StdDev | Min | Max |
-|----------|------|--------|------|--------|-----|-----|
-| *(none)* | wall | 2533ms | 2590ms | 206ms | 2391ms | 3045ms |
-| **rperf** | cpu | 2626ms | 2647ms | 162ms | 2429ms | 2970ms |
-| **rperf** | wall | 2333ms | 2303ms | 110ms | 2125ms | 2444ms |
-| stackprof | cpu | 2221ms | 2238ms | 114ms | 2088ms | 2438ms |
-| stackprof | wall | 2300ms | 2409ms | 263ms | 2176ms | 3012ms |
-| vernier | wall | 2367ms | 2326ms | 116ms | 2182ms | 2463ms |
-| pf2 | cpu | 2522ms | 2608ms | 165ms | 2503ms | 3055ms |
-| pf2 | wall | 2588ms | 2644ms | 159ms | 2530ms | 3059ms |
+| Profiler | Mode | Median | Mean | StdDev | Min | Max | Overhead |
+|----------|------|--------|------|--------|-----|-----|----------|
+| *(none)* | wall | 2192ms | 2252ms | 153ms | 2118ms | 2605ms | - |
+| **rperf** | cpu | 2201ms | 2241ms | 118ms | 2117ms | 2439ms | **+0.4%** |
+| **rperf** | wall | 2174ms | 2251ms | 140ms | 2118ms | 2571ms | **-0.8%** |
+| stackprof | cpu | 2283ms | 2299ms | 184ms | 2118ms | 2772ms | +4.2% |
+| stackprof | wall | 2147ms | 2182ms | 86ms | 2102ms | 2398ms | -2.1% |
+| vernier | wall | 2166ms | 2217ms | 164ms | 2082ms | 2635ms | -1.2% |
+| pf2 | cpu | 2691ms | 2596ms | 121ms | 2454ms | 2742ms | **+22.8%** |
+| pf2 | wall | 2556ms | 2615ms | 211ms | 2493ms | 3235ms | **+16.6%** |
+
+Overhead = (median - baseline median) / baseline median. Negative values are within noise.
 
 **rperf sampling overhead** (median of 10 runs):
 
 | Mode | Sampling count | Total sampling time | Per-callback |
 |------|----------------|---------------------|--------------|
-| cpu | 2357 | 2.0ms (0.1% of elapsed) | 0.9us |
-| wall | 2152 | 1.3ms (0.1% of elapsed) | 0.6us |
+| cpu | 2054 | 1.5ms (0.1% of elapsed) | 0.7us |
+| wall | 2028 | 1.1ms (0.1% of elapsed) | 0.6us |
 
-**考察:**
-
-- ベースラインの標準偏差が 206ms（中央値の ~8%）あり、WSL2 のスケジューリングノイズが大きい。そのため、プロファイラ間のオーバーヘッド差は統計的に有意とは言い切れない。
-- ベースラインより速い計測値（stackprof cpu 2221ms < none 2533ms）が出ているのも、このノイズによるもの。
-- その中で pf2 の中央値（cpu 2522ms, wall 2588ms）はベースラインに近く、rperf cpu（2626ms）も同程度。
-- rperf のサンプリングコールバック自体のオーバーヘッドは極めて小さい: ~2300回のコールバックが合計 1.3-2.0ms（経過時間の 0.1%）。
+- rperf, stackprof, and vernier all show negligible overhead (within baseline noise of stddev ~153ms / ~7%).
+- pf2 has significant overhead (+17-23%), likely due to native stack collection on every sample.
+- rperf's sampling callbacks are extremely cheap: ~2000 callbacks took ~1.1-1.5ms total (~0.6-0.7us/call), accounting for only 0.1% of elapsed time.
 
 <details><summary>Reproduction commands</summary>
 
 ```bash
-ruby run_overhead.rb   # 10 iterations per config, saves to data/overhead_raw.tsv
+ruby run_overhead.rb   # 10 rounds, interleaved configs, saves to data/overhead_raw.tsv
 ```
 
 </details>
