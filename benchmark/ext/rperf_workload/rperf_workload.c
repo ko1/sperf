@@ -18,13 +18,23 @@ static VALUE rperf_busy_wait_method(VALUE self, VALUE n_usec)
     return Qnil;
 }
 
+/* nanosleep with EINTR retry (e.g. profiler timer signals) */
+static void
+rperf_nanosleep_retry(const struct timespec *ts)
+{
+    struct timespec rem = *ts;
+    while (nanosleep(&rem, &rem) == -1 && errno == EINTR) {
+        /* continue with remaining time */
+    }
+}
+
 static VALUE rperf_nanosleep_method(VALUE self, VALUE n_usec)
 {
     struct timespec ts;
     long usec = NUM2LONG(n_usec);
     ts.tv_sec = usec / 1000000;
     ts.tv_nsec = (usec % 1000000) * 1000;
-    nanosleep(&ts, NULL);
+    rperf_nanosleep_retry(&ts);
     return Qnil;
 }
 
@@ -33,7 +43,7 @@ static void *
 rperf_nanosleep_nogvl(void *arg)
 {
     struct timespec *ts = (struct timespec *)arg;
-    nanosleep(ts, NULL);
+    rperf_nanosleep_retry(ts);
     return NULL;
 }
 
