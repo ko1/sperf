@@ -109,6 +109,8 @@ class TestRperf < Test::Unit::TestCase
 
   # Sample buffer initial capacity is 1024.
   # With 4 threads at 5000Hz, ~20000 samples/sec → crosses boundary quickly.
+  # After aggregation, data[:samples] contains unique stacks (much fewer),
+  # so we check sampling_count to verify buffer realloc was exercised.
   def test_sample_buffer_realloc
     duration = 1.0
     data = nil
@@ -120,11 +122,11 @@ class TestRperf < Test::Unit::TestCase
       data = Rperf.stop
 
       trials << "#{duration}s: samples=#{data[:samples].size}, trigger_count=#{data[:trigger_count]}, sampling_count=#{data[:sampling_count]}"
-      break if data[:samples].size > 1024
+      break if data[:sampling_count] > 1024
 
       duration *= 2
       assert_operator duration, :<=, 32,
-        "Expected >1024 samples to exercise realloc. Trials:\n#{trials.map { |t| "  #{t}" }.join("\n")}"
+        "Expected >1024 sampling_count to exercise realloc. Trials:\n#{trials.map { |t| "  #{t}" }.join("\n")}"
     end
 
     # Verify all samples have valid data
@@ -133,25 +135,29 @@ class TestRperf < Test::Unit::TestCase
 
   # Frame pool initial capacity is ~131K frames (1MB / 8 bytes per VALUE).
   # Use deep recursion to generate lots of frames quickly.
+  # After aggregation, unique stacks are fewer, but frame pool realloc
+  # is still exercised during sampling (before aggregation flushes).
+  # We verify by checking sampling_count * depth > initial_pool.
   def test_frame_pool_realloc
     initial_pool = 1024 * 1024 / 8  # ~131072
+    stack_depth = 300
     duration = 1.0
     data = nil
     trials = []
 
     loop do
       Rperf.start(frequency: 5000)
-      deep_recurse(300) { busy_wait(duration) }
+      deep_recurse(stack_depth) { busy_wait(duration) }
       data = Rperf.stop
 
       samples = data[:samples]
-      total_frames = samples.sum { |frames, _| frames.size }
-      trials << "#{duration}s: samples=#{samples.size}, total_frames=#{total_frames}"
-      break if total_frames > initial_pool
+      estimated_frames = data[:sampling_count] * stack_depth
+      trials << "#{duration}s: samples=#{samples.size}, sampling_count=#{data[:sampling_count]}, estimated_frames=#{estimated_frames}"
+      break if estimated_frames > initial_pool
 
       duration *= 2
       assert_operator duration, :<=, 32,
-        "Expected >#{initial_pool} total frames to exercise frame pool realloc. Trials:\n#{trials.map { |t| "  #{t}" }.join("\n")}"
+        "Expected >#{initial_pool} estimated frames to exercise frame pool realloc. Trials:\n#{trials.map { |t| "  #{t}" }.join("\n")}"
     end
 
     # Verify early and late samples both have valid frame data

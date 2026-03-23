@@ -25,13 +25,13 @@ module Rperf
   #   .collapsed → collapsed stacks (FlameGraph / speedscope compatible)
   #   .txt       → text report (human/AI readable flat + cumulative table)
   #   otherwise (.pb.gz etc) → pprof protobuf (gzip compressed)
-  def self.start(frequency: 1000, mode: :cpu, output: nil, verbose: false, format: nil, stat: false, signal: nil)
+  def self.start(frequency: 1000, mode: :cpu, output: nil, verbose: false, format: nil, stat: false, signal: nil, aggregate: true)
     @verbose = verbose || ENV["RPERF_VERBOSE"] == "1"
     @output = output
     @format = format
     @stat = stat
     @stat_start_mono = Process.clock_gettime(Process::CLOCK_MONOTONIC) if @stat
-    c_opts = { frequency: frequency, mode: mode }
+    c_opts = { frequency: frequency, mode: mode, aggregate: aggregate }
     c_opts[:signal] = signal unless signal.nil?
     _c_start(**c_opts)
 
@@ -393,11 +393,13 @@ module Rperf
                     when "false" then false
                     else ENV["RPERF_SIGNAL"].to_i
                     end
+    _rperf_aggregate = ENV["RPERF_AGGREGATE"] != "0"
     _rperf_start_opts = { frequency: (ENV["RPERF_FREQUENCY"] || 1000).to_i, mode: _rperf_mode,
                           output: _rperf_stat ? ENV["RPERF_OUTPUT"] : (ENV["RPERF_OUTPUT"] || "rperf.data"),
                           verbose: ENV["RPERF_VERBOSE"] == "1",
                           format: _rperf_format,
-                          stat: _rperf_stat }
+                          stat: _rperf_stat,
+                          aggregate: _rperf_aggregate }
     _rperf_start_opts[:signal] = _rperf_signal unless _rperf_signal.nil?
     start(**_rperf_start_opts)
     at_exit { stop }
