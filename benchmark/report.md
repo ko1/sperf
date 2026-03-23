@@ -268,28 +268,27 @@ Average error (%). Bold = <10%. ~~Struck~~ = >90%.
 
 ## Overhead Comparison
 
-Profiler overhead measured on the ratio#1 scenario (4M calls of `rw` methods with arg 0, ~2.5s baseline). All at 1000Hz.
+Profiler overhead measured on the ratio#1 scenario (4M calls of `rw` methods with arg 0, ~2.5s baseline). All at 1000Hz. Each configuration was run 10 times; the table shows the median. Raw data is in `data/overhead_raw.tsv`.
 
 ```bash
-ruby profrun.rb -P none -m wall -F 1000 scripts/ratio_1.rb       # baseline
-ruby profrun.rb -P sperf -m cpu -F 1000 -o /tmp/out scripts/ratio_1.rb
-ruby profrun.rb -P sperf -m wall -F 1000 -o /tmp/out scripts/ratio_1.rb
-# ... etc for each profiler
+ruby run_overhead.rb   # runs all configurations 10 times each, saves to data/
 ```
 
-| Profiler | Mode | Elapsed | Overhead | Sampling count | Sampling time |
-|----------|------|---------|----------|----------------|---------------|
-| *(none)* | wall | 2508ms | - | - | - |
-| **sperf** | cpu | 2542ms | ~1% | 2044 | 2.8ms (0.1%) |
-| **sperf** | wall | 2107ms | ~0% | 1678 | 0.9ms (0.0%) |
-| stackprof | cpu | 2121ms | ~0% | - | - |
-| stackprof | wall | 2105ms | ~0% | - | - |
-| vernier | wall | 2382ms | ~0% | - | - |
-| pf2 | cpu | 2470ms | ~0% | - | - |
-| pf2 | wall | 2614ms | ~4% | - | - |
+| Profiler | Mode | Elapsed (median) | Overhead | Sampling count | Sampling time |
+|----------|------|-------------------|----------|----------------|---------------|
+| *(none)* | wall | 2487ms | - | - | - |
+| **sperf** | cpu | 2492ms | ~0% | 2293 | 2.1ms (0.1%) |
+| **sperf** | wall | 2715ms | ~9% | 2487 | 2.1ms (0.1%) |
+| stackprof | cpu | 2610ms | ~5% | - | - |
+| stackprof | wall | 2709ms | ~9% | - | - |
+| vernier | wall | 2639ms | ~6% | - | - |
+| pf2 | cpu | 3114ms | ~25% | - | - |
+| pf2 | wall | 3174ms | ~28% | - | - |
 
-- All profilers show low overhead on this short-lived workload. The baseline measurement has high variance (~2.1-2.5s range), so overhead differences of <200ms are within noise.
-- sperf's sampling overhead is negligible: 2044 callbacks took 2.8ms total (1.4us/call) in cpu mode, and 1678 callbacks took 0.9ms (0.5us/call) in wall mode.
+- sperf cpu mode has negligible overhead (~0%). Wall mode adds ~9%, comparable to stackprof/vernier wall.
+- pf2 has significant overhead (25-28%), likely due to native stack collection on every sample.
+- sperf's sampling overhead is negligible: ~2300 callbacks took ~2.1ms total (~0.9us/call) in both modes.
+- The baseline has high variance (2.2-3.1s range across 10 runs, median 2487ms) due to WSL2 scheduling noise.
 
 ---
 

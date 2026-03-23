@@ -1,0 +1,81 @@
+profiler	mode	iteration	elapsed_ms	sampling_count	sampling_time_ns
+none	wall	1	2296.4		
+none	wall	2	2218.1		
+none	wall	3	2733.8		
+none	wall	4	2357.6		
+none	wall	5	2598.5		
+none	wall	6	2845.1		
+none	wall	7	2212.7		
+none	wall	8	2255.4		
+none	wall	9	3074.9		
+none	wall	10	2486.7		
+sperf	cpu	1	2202.6	2014	1628513
+sperf	cpu	2	2492.2	2293	2159943
+sperf	cpu	3	2541.5	2326	2106627
+sperf	cpu	4	2290.3	2095	1793434
+sperf	cpu	5	2297.7	2110	1866890
+sperf	cpu	6	2736.3	2524	3071200
+sperf	cpu	7	2287.0	2068	1674583
+sperf	cpu	8	2602.2	2400	2383860
+sperf	cpu	9	2689.1	2423	2276781
+sperf	cpu	10	2374.3	2176	1858636
+sperf	wall	1	2700.9	2420	2243947
+sperf	wall	2	2457.9	2210	1714848
+sperf	wall	3	2715.1	2483	1871841
+sperf	wall	4	2508.0	2311	1803499
+sperf	wall	5	2934.5	2673	2298983
+sperf	wall	6	2508.4	2316	1750837
+sperf	wall	7	2739.2	2507	2072714
+sperf	wall	8	2750.4	2530	4379797
+sperf	wall	9	2782.6	2544	2450342
+sperf	wall	10	2713.0	2487	1885345
+stackprof	cpu	1	2571.5		
+stackprof	cpu	2	2605.9		
+stackprof	cpu	3	2684.2		
+stackprof	cpu	4	2614.8		
+stackprof	cpu	5	2609.8		
+stackprof	cpu	6	2643.4		
+stackprof	cpu	7	2605.0		
+stackprof	cpu	8	2610.4		
+stackprof	cpu	9	2687.0		
+stackprof	cpu	10	2588.6		
+stackprof	wall	1	2926.0		
+stackprof	wall	2	2329.2		
+stackprof	wall	3	2709.4		
+stackprof	wall	4	2751.7		
+stackprof	wall	5	2798.6		
+stackprof	wall	6	2704.5		
+stackprof	wall	7	2469.5		
+stackprof	wall	8	2412.5		
+stackprof	wall	9	2739.4		
+stackprof	wall	10	2574.7		
+vernier	wall	1	2609.2		
+vernier	wall	2	2814.8		
+vernier	wall	3	2460.6		
+vernier	wall	4	2821.6		
+vernier	wall	5	2401.7		
+vernier	wall	6	2593.9		
+vernier	wall	7	2794.3		
+vernier	wall	8	2638.9		
+vernier	wall	9	2602.6		
+vernier	wall	10	2762.9		
+pf2	cpu	1	3216.0		
+pf2	cpu	2	3037.5		
+pf2	cpu	3	3125.2		
+pf2	cpu	4	2985.8		
+pf2	cpu	5	3213.9		
+pf2	cpu	6	2926.5		
+pf2	cpu	7	3113.9		
+pf2	cpu	8	3106.3		
+pf2	cpu	9	3063.2		
+pf2	cpu	10	3211.2		
+pf2	wall	1	3051.7		
+pf2	wall	2	3485.0		
+pf2	wall	3	3142.9		
+pf2	wall	4	3149.8		
+pf2	wall	5	3243.5		
+pf2	wall	6	3245.3		
+pf2	wall	7	3451.0		
+pf2	wall	8	3157.9		
+pf2	wall	9	3173.8		
+pf2	wall	10	3137.4		
