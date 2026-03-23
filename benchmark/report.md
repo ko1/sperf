@@ -17,25 +17,25 @@ Scenarios used: rw#9, cw#9, csleep#9, cwait#9 (baseline ~8.5s each), mixed#6 (ba
 
 **Time-accuracy scenarios** (rw, cw, csleep, cwait, mixed):
 
-各シナリオは、メソッドごとの期待実行時間を定義している（例: `rw334` は CPU 850ms を消費すべき）。プロファイラの計測値と比較し、メソッドごとの相対誤差を求める:
+Each scenario defines expected execution times per method (e.g., `rw334` should consume 850ms of CPU time). After profiling, the profiler's reported time for each method is extracted. The per-method relative error is:
 
     method_error = |actual_ms - expected_ms| / expected_ms
 
-`expected_ms` で割ることで、メソッド間の絶対値の大小によらない無次元の比率になる。これに 100 を掛けると「誤差 %」になる。例: 0.083 → 8.3% は、計測値が期待値から平均 8.3% ずれていることを意味する。
+Dividing by `expected_ms` normalizes across methods with different magnitudes, producing a dimensionless ratio. Multiplied by 100, this becomes a percentage. For example, 0.083 → 8.3% means the profiler's measurement was on average 8.3% away from the true value.
 
-シナリオ全体の誤差は、全メソッド（47個 or 66個）の相対誤差の算術平均:
+The scenario-level error is the arithmetic mean of all per-method relative errors (47 methods for single-type scenarios, 66 for mixed):
 
     scenario_error = (1/N) × Σ method_error_i
 
-期待値が 0 のメソッド（例: csleep の CPU 時間 = 0）は誤差 0 として扱う。
+Methods with expected value of 0 (e.g., csleep CPU time = 0) are treated as 0 error.
 
 **Ratio scenarios** (ratio):
 
-各メソッドの計測値を合計で割り、比率に変換する:
+Each method's profiler-reported value is converted to a ratio by dividing by the sum of all methods:
 
     actual_ratio = actual_ms[method] / Σ actual_ms[all methods]
 
-期待比率（呼び出し回数から算出）との相対誤差を同じ式で計算する。これにより、絶対時間の正確さではなく、相対的な呼び出し頻度の捕捉精度を評価する。
+The same relative error formula is then applied against the expected ratios (derived from call counts). This measures whether the profiler captures relative call frequency correctly, independent of absolute time accuracy.
 
 ### Workload Types
 
