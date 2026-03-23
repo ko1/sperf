@@ -134,24 +134,28 @@ class TestRperf < Test::Unit::TestCase
   # Frame pool initial capacity is ~131K frames (1MB / 8 bytes per VALUE).
   # Use deep recursion to generate lots of frames quickly.
   def test_frame_pool_realloc
-    Rperf.start(frequency: 5000)
-
-    # Each sample captures ~300 frames. At 5000Hz, 0.5s gives ~1500 samples
-    # × 300 depth = ~450K frames, well over 131072. Use 1s for margin.
-    deep_recurse(300) { busy_wait(1.0) }
-
-    data = Rperf.stop
-    assert_not_nil data
-    samples = data[:samples]
-
-    # Calculate total frames stored
-    total_frames = samples.sum { |frames, _| frames.size }
     initial_pool = 1024 * 1024 / 8  # ~131072
+    duration = 1.0
+    data = nil
+    trials = []
 
-    assert_operator total_frames, :>, initial_pool,
-      "Expected >#{initial_pool} total frames to exercise frame pool realloc (got #{total_frames})"
+    loop do
+      Rperf.start(frequency: 5000)
+      deep_recurse(300) { busy_wait(duration) }
+      data = Rperf.stop
+
+      samples = data[:samples]
+      total_frames = samples.sum { |frames, _| frames.size }
+      trials << "#{duration}s: samples=#{samples.size}, total_frames=#{total_frames}"
+      break if total_frames > initial_pool
+
+      duration *= 2
+      assert_operator duration, :<=, 32,
+        "Expected >#{initial_pool} total frames to exercise frame pool realloc. Trials:\n#{trials.map { |t| "  #{t}" }.join("\n")}"
+    end
 
     # Verify early and late samples both have valid frame data
+    samples = data[:samples]
     assert_valid_samples(samples.first(10))
     assert_valid_samples(samples.last(10))
   end
