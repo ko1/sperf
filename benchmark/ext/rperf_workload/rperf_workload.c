@@ -18,14 +18,16 @@ static VALUE rperf_busy_wait_method(VALUE self, VALUE n_usec)
     return Qnil;
 }
 
-/* nanosleep with EINTR retry (e.g. profiler timer signals) */
-static void
+/* nanosleep with EINTR retry. Returns number of retries. */
+static long
 rperf_nanosleep_retry(const struct timespec *ts)
 {
     struct timespec rem = *ts;
+    long retries = 0;
     while (nanosleep(&rem, &rem) == -1 && errno == EINTR) {
-        /* continue with remaining time */
+        retries++;
     }
+    return retries;
 }
 
 static VALUE rperf_nanosleep_method(VALUE self, VALUE n_usec)
@@ -34,27 +36,33 @@ static VALUE rperf_nanosleep_method(VALUE self, VALUE n_usec)
     long usec = NUM2LONG(n_usec);
     ts.tv_sec = usec / 1000000;
     ts.tv_nsec = (usec % 1000000) * 1000;
-    rperf_nanosleep_retry(&ts);
-    return Qnil;
+    long retries = rperf_nanosleep_retry(&ts);
+    return LONG2NUM(retries);
 }
 
 /* nanosleep without GVL — simulates blocking I/O */
+typedef struct {
+    struct timespec ts;
+    long retries;
+} rperf_nogvl_arg_t;
+
 static void *
 rperf_nanosleep_nogvl(void *arg)
 {
-    struct timespec *ts = (struct timespec *)arg;
-    rperf_nanosleep_retry(ts);
+    rperf_nogvl_arg_t *a = (rperf_nogvl_arg_t *)arg;
+    a->retries = rperf_nanosleep_retry(&a->ts);
     return NULL;
 }
 
 static VALUE rperf_cwait_method(VALUE self, VALUE n_usec)
 {
-    struct timespec ts;
+    rperf_nogvl_arg_t arg;
     long usec = NUM2LONG(n_usec);
-    ts.tv_sec = usec / 1000000;
-    ts.tv_nsec = (usec % 1000000) * 1000;
-    rb_thread_call_without_gvl(rperf_nanosleep_nogvl, &ts, RUBY_UBF_IO, NULL);
-    return Qnil;
+    arg.ts.tv_sec = usec / 1000000;
+    arg.ts.tv_nsec = (usec % 1000000) * 1000;
+    arg.retries = 0;
+    rb_thread_call_without_gvl(rperf_nanosleep_nogvl, &arg, RUBY_UBF_IO, NULL);
+    return LONG2NUM(arg.retries);
 }
 
 void Init_rperf_workload(void)

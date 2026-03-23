@@ -8,6 +8,9 @@
 #include <unistd.h>
 #include <signal.h>
 #include <assert.h>
+#ifdef __linux__
+#include <sys/syscall.h>
+#endif
 
 /* Checked pthread wrappers — assert on unexpected errors */
 #define CHECKED(call) do { int _r = (call); assert(_r == 0 && #call); (void)_r; } while (0)
@@ -122,6 +125,7 @@ typedef struct rperf_profiler {
 #if RPERF_USE_TIMER_SIGNAL
     timer_t timer_id;
     int timer_signal;     /* >0: use timer signal, 0: use nanosleep thread */
+    volatile pid_t worker_tid;   /* kernel TID of worker thread (for SIGEV_THREAD_ID) */
 #endif
     rb_postponed_job_handle_t pj_handle;
     int aggregate;               /* 1 = aggregate samples, 0 = raw */
@@ -827,15 +831,20 @@ rperf_signal_handler(int sig)
 }
 
 /* Worker thread for signal mode: aggregation only.
- * Timer triggers are handled by the signal handler.
- * Polls swap_ready with a short timedwait. */
+ * Timer signals are directed to this thread via SIGEV_THREAD_ID,
+ * and handled by the sigaction handler (rperf_signal_handler).
+ * This ensures the timer signal does not interrupt other threads. */
 static void *
 rperf_worker_signal_func(void *arg)
 {
     rperf_profiler_t *prof = (rperf_profiler_t *)arg;
     struct timespec deadline;
 
+    /* Publish our kernel TID so start() can use it for SIGEV_THREAD_ID */
     CHECKED(pthread_mutex_lock(&prof->worker_mutex));
+    prof->worker_tid = (pid_t)syscall(SYS_gettid);
+    CHECKED(pthread_cond_signal(&prof->worker_cond));
+
     while (prof->running) {
         clock_gettime(CLOCK_REALTIME, &deadline);
         deadline.tv_nsec += 10000000L; /* 10ms poll interval */
@@ -1052,21 +1061,32 @@ rb_rperf_start(int argc, VALUE *argv, VALUE self)
         sa.sa_flags = SA_RESTART;
         sigaction(g_profiler.timer_signal, &sa, NULL);
 
-        memset(&sev, 0, sizeof(sev));
-        sev.sigev_notify = SIGEV_SIGNAL;
-        sev.sigev_signo = g_profiler.timer_signal;
-        if (timer_create(CLOCK_MONOTONIC, &sev, &g_profiler.timer_id) != 0) {
+        /* Start worker thread first to get its kernel TID */
+        g_profiler.worker_tid = 0;
+        if (pthread_create(&g_profiler.worker_thread, NULL,
+                           rperf_worker_signal_func, &g_profiler) != 0) {
             g_profiler.running = 0;
             signal(g_profiler.timer_signal, SIG_DFL);
             goto timer_fail;
         }
 
-        /* Start worker thread (aggregation only, timer via signal handler) */
-        if (pthread_create(&g_profiler.worker_thread, NULL,
-                           rperf_worker_signal_func, &g_profiler) != 0) {
+        /* Wait for worker thread to publish its TID */
+        CHECKED(pthread_mutex_lock(&g_profiler.worker_mutex));
+        while (g_profiler.worker_tid == 0) {
+            CHECKED(pthread_cond_wait(&g_profiler.worker_cond, &g_profiler.worker_mutex));
+        }
+        CHECKED(pthread_mutex_unlock(&g_profiler.worker_mutex));
+
+        /* Create timer targeting the worker thread via SIGEV_THREAD_ID */
+        memset(&sev, 0, sizeof(sev));
+        sev.sigev_notify = SIGEV_THREAD_ID;
+        sev.sigev_signo = g_profiler.timer_signal;
+        sev._sigev_un._tid = g_profiler.worker_tid;
+        if (timer_create(CLOCK_MONOTONIC, &sev, &g_profiler.timer_id) != 0) {
             g_profiler.running = 0;
-            timer_delete(g_profiler.timer_id);
             signal(g_profiler.timer_signal, SIG_DFL);
+            CHECKED(pthread_cond_signal(&g_profiler.worker_cond));
+            CHECKED(pthread_join(g_profiler.worker_thread, NULL));
             goto timer_fail;
         }
 
