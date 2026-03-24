@@ -12,7 +12,7 @@ rperf is a safepoint-based sampling performance profiler for Ruby. It uses actua
 ```
 ext/rperf/rperf.c    -- C extension: timer (signal or thread), GVL/GC event hooks, sampling
 lib/rperf.rb         -- Ruby API: start/stop, encoders (PProf, Collapsed, Text), stat output
-exe/rperf            -- CLI: record, stat, report, diff, help subcommands
+exe/rperf            -- CLI: record, stat, exec, report, diff, help subcommands
 test/                -- Unit tests (per-component: profiler, gvl, output, stat, cli, fork)
 benchmark/           -- Accuracy benchmark suite (see benchmark/README.md)
 ```
@@ -29,6 +29,7 @@ rake test             # Run unit tests
 ```bash
 rperf record [options] command [args...]   # Profile and save to file
 rperf stat [options] command [args...]     # Profile and print summary to stderr
+rperf exec [options] command [args...]     # Profile and print full report to stderr (stat --report)
 rperf report [options] [file]              # Open pprof profile (requires Go)
 rperf diff [options] base.pb.gz target.pb.gz  # Compare two profiles (requires Go)
 rperf help                                 # Full reference documentation (AI-friendly)

@@ -9,6 +9,9 @@ rperf stat ruby my_app.rb
 # Performance overview with profile tables
 rperf stat --report ruby my_app.rb
 
+# Full performance report (same as stat --report)
+rperf exec ruby my_app.rb
+
 # Record to default file (rperf.data, pprof format, cpu mode)
 rperf record ruby my_app.rb
 

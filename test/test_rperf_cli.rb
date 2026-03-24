@@ -236,6 +236,39 @@ class TestRperfCli < Test::Unit::TestCase
     assert_include stdout, "--report"
   end
 
+  # --- exec subcommand ---
+
+  def test_cli_exec_basic
+    _, stderr, status = run_rperf("exec", "-f", "100",
+                                  RbConfig.ruby, "-e", "5_000_000.times { 1 + 1 }")
+    assert_equal 0, status.exitstatus
+    assert_include stderr, "Performance stats"
+    assert_include stderr, "real"
+    # exec always includes flat/cumulative tables (like stat --report)
+    assert_include stderr, "Flat"
+    assert_include stderr, "Cumulative"
+  end
+
+  def test_cli_exec_no_command
+    _, stderr, status = run_rperf("exec")
+    refute_equal 0, status.exitstatus
+    assert_include stderr, "No command specified"
+  end
+
+  def test_cli_exec_help
+    stdout, _, status = run_rperf("exec", "-h")
+    assert_equal 0, status.exitstatus
+    assert_include stdout, "Usage: rperf exec"
+  end
+
+  def test_cli_exec_mode_cpu
+    _, stderr, status = run_rperf("exec", "-f", "100", "-m", "cpu",
+                                  RbConfig.ruby, "-e", "5_000_000.times { 1 + 1 }")
+    assert_equal 0, status.exitstatus
+    assert_include stderr, "Performance stats"
+    assert_include stderr, "Flat"
+  end
+
   # --- ENV auto-start ---
 
   def test_cli_env_auto_start

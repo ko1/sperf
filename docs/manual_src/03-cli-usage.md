@@ -1,6 +1,6 @@
 # CLI Usage
 
-rperf provides a perf-like command-line interface with four main subcommands: `record`, `stat`, `report`, and `diff`.
+rperf provides a perf-like command-line interface with five main subcommands: `record`, `stat`, `exec`, `report`, and `diff`.
 
 ## rperf stat
 
@@ -96,6 +96,29 @@ rperf stat [options] command [args...]
 | `-f HZ` | Sampling frequency in Hz (default: 1000) |
 | `-m MODE` | `cpu` or `wall` (default: `wall`) |
 | `--report` | Include flat/cumulative profile tables in output |
+| `-v` | Print additional sampling statistics |
+
+## rperf exec
+
+[`rperf exec`](#index:rperf exec) runs a command with profiling and prints a full performance report to stderr — equivalent to `rperf stat --report`. It uses [wall](#index:wall mode) mode by default and does not save to a file.
+
+```bash
+rperf exec ruby my_app.rb
+```
+
+This prints everything `stat` shows (timing, time breakdown, GC/memory/OS stats) plus flat and cumulative top-50 function tables.
+
+### exec options
+
+```bash
+rperf exec [options] command [args...]
+```
+
+| Option | Description |
+|--------|-------------|
+| `-o PATH` | Also save profile to file (default: none) |
+| `-f HZ` | Sampling frequency in Hz (default: 1000) |
+| `-m MODE` | `cpu` or `wall` (default: `wall`) |
 | `-v` | Print additional sampling statistics |
 
 ## rperf record

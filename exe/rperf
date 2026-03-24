@@ -72,6 +72,7 @@ HELP_TEXT = File.read(File.expand_path("../docs/help.md", __dir__))
 
 USAGE = "Usage: rperf record [options] command [args...]\n" \
        "       rperf stat [options] command [args...]\n" \
+       "       rperf exec [options] command [args...]\n" \
        "       rperf report [options] [file]\n" \
        "       rperf diff [options] base.pb.gz target.pb.gz\n" \
        "       rperf help\n"
@@ -120,7 +121,7 @@ when "diff"
     else            exec("go", "tool", "pprof", "-http=localhost:#{find_available_port}", "-diff_base=#{base_file}", target_file)
     end
   end
-when "record", "stat"
+when "record", "stat", "exec"
   # continue below
 else
   $stderr.puts "Unknown subcommand: #{subcommand.inspect}" if subcommand
@@ -128,22 +129,23 @@ else
   exit 1
 end
 
-output = (subcommand == "stat") ? nil : "rperf.data"
+output = (subcommand == "record") ? "rperf.data" : nil
 frequency = 1000
-mode = (subcommand == "stat") ? "wall" : "cpu"
+mode = (subcommand == "record") ? "cpu" : "wall"
 format = nil
 signal = nil
 verbose = false
 aggregate = true
-stat_report = false
+stat_report = (subcommand == "exec")
 
 parser = OptionParser.new do |opts|
   opts.banner = case subcommand
                 when "record" then "Usage: rperf record [options] command [args...]"
                 when "stat"   then "Usage: rperf stat [options] command [args...]"
+                when "exec"   then "Usage: rperf exec [options] command [args...]"
                 end
 
-  opts.on("-o", "--output PATH", "Output file#{subcommand == 'stat' ? ' (default: none)' : ' (default: rperf.data)'}") do |v|
+  opts.on("-o", "--output PATH", "Output file#{subcommand == 'record' ? ' (default: rperf.data)' : ' (default: none)'}") do |v|
     output = v
   end
 
@@ -151,7 +153,7 @@ parser = OptionParser.new do |opts|
     frequency = v
   end
 
-  default_mode = (subcommand == "stat") ? "wall" : "cpu"
+  default_mode = (subcommand == "record") ? "cpu" : "wall"
   opts.on("-m", "--mode MODE", %w[cpu wall], "Profiling mode: cpu or wall (default: #{default_mode})") do |v|
     mode = v
   end
@@ -240,7 +242,7 @@ ENV["RPERF_VERBOSE"] = "1" if verbose
 ENV["RPERF_SIGNAL"] = signal if signal
 ENV["RPERF_AGGREGATE"] = "0" unless aggregate
 
-if subcommand == "stat"
+if subcommand == "stat" || subcommand == "exec"
   ENV["RPERF_STAT"] = "1"
   ENV["RPERF_STAT_COMMAND"] = ARGV.join(" ")
   ENV["RPERF_STAT_REPORT"] = "1" if stat_report

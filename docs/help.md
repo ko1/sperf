@@ -10,6 +10,7 @@ POSIX systems (Linux, macOS). Requires Ruby >= 3.4.0.
 
     rperf record [options] command [args...]
     rperf stat [options] command [args...]
+    rperf exec [options] command [args...]
     rperf report [options] [file]
     rperf help
 
@@ -41,6 +42,20 @@ Shows: user/sys/real time, time breakdown (CPU execution, GVL blocked,
 GVL wait, GC marking, GC sweeping), GC/memory/OS stats, and profiler overhead.
 Use --report to add flat and cumulative top-50 function tables.
 
+### exec: Run command and print full profile report to stderr.
+
+Like `stat --report`. Uses wall mode by default. No file output by default.
+
+    -o, --output PATH       Also save profile to file (default: none)
+    -f, --frequency HZ      Sampling frequency in Hz (default: 1000)
+    -m, --mode MODE         cpu or wall (default: wall)
+    --signal VALUE          Timer signal (Linux only): signal number, or 'false'
+                            for nanosleep thread (default: auto)
+    -v, --verbose           Print additional sampling statistics
+
+Shows: user/sys/real time, time breakdown, GC/memory/OS stats, profiler overhead,
+and flat/cumulative top-50 function tables.
+
 ### report: Open pprof profile with go tool pprof. Requires Go.
 
     --top                   Print top functions by flat time
@@ -67,6 +82,8 @@ Default (no flag): opens diff in browser.
     rperf stat ruby app.rb
     rperf stat --report ruby app.rb
     rperf stat -o profile.pb.gz ruby app.rb
+    rperf exec ruby app.rb
+    rperf exec -m cpu ruby app.rb
     rperf report
     rperf report --top profile.pb.gz
     rperf diff before.pb.gz after.pb.gz
