@@ -24,6 +24,7 @@ module Rperf
   #   .txt       → text report (human/AI readable flat + cumulative table)
   #   otherwise (.pb.gz etc) → pprof protobuf (gzip compressed)
   def self.start(frequency: 1000, mode: :cpu, output: nil, verbose: false, format: nil, stat: false, signal: nil, aggregate: true)
+    raise ArgumentError, "frequency must be a positive integer (got #{frequency.inspect})" unless frequency.is_a?(Integer) && frequency > 0
     @verbose = verbose || ENV["RPERF_VERBOSE"] == "1"
     @output = output
     @format = format

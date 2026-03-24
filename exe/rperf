@@ -208,6 +208,11 @@ if ARGV.empty?
   exit 1
 end
 
+if frequency <= 0
+  $stderr.puts "Error: frequency must be a positive integer (got #{frequency})"
+  exit 1
+end
+
 # Add lib dir to RUBYLIB so -rrperf can find the extension
 lib_dir = File.expand_path("../lib", __dir__)
 ENV["RUBYLIB"] = [lib_dir, ENV["RUBYLIB"]].compact.join(File::PATH_SEPARATOR)

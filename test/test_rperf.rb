@@ -107,6 +107,27 @@ class TestRperf < Test::Unit::TestCase
       "Max weight in second session (#{max_weight2}ns) should not include the gap between sessions"
   end
 
+  # --- Input validation tests ---
+
+  def test_frequency_zero_raises
+    assert_raise(ArgumentError) { Rperf.start(frequency: 0) }
+  end
+
+  def test_frequency_negative_raises
+    assert_raise(ArgumentError) { Rperf.start(frequency: -1) }
+  end
+
+  def test_frequency_non_integer_raises
+    assert_raise(ArgumentError) { Rperf.start(frequency: 1.5) }
+  end
+
+  def test_cli_frequency_zero
+    exe = File.expand_path("../exe/rperf", __dir__)
+    output = IO.popen([RbConfig.ruby, exe, "stat", "-f", "0", "true"], err: [:child, :out], &:read)
+    refute_equal 0, $?.exitstatus, "rperf with frequency 0 should fail"
+    assert_include output, "frequency must be a positive integer"
+  end
+
   # --- Boundary / realloc tests ---
 
   # Sample buffer initial capacity is 1024.
