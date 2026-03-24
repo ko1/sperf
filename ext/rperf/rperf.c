@@ -1342,9 +1342,9 @@ rperf_after_fork_child(void)
     g_profiler.running = 0;
 
 #if RPERF_USE_TIMER_SIGNAL
-    /* timer_create timers are not inherited across fork; reset signal handler */
+    /* timer_create timers are not inherited across fork; restore old signal handler */
     if (g_profiler.timer_signal > 0) {
-        signal(g_profiler.timer_signal, SIG_DFL);
+        sigaction(g_profiler.timer_signal, &g_profiler.old_sigaction, NULL);
     }
 #endif
 
