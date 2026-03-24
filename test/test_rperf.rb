@@ -129,6 +129,10 @@ class TestRperf < Test::Unit::TestCase
     assert_raise(ArgumentError) { Rperf.start(signal: 19) } # SIGSTOP
   end
 
+  def test_signal_string_kill_raises
+    assert_raise(ArgumentError) { Rperf.start(signal: "9") }  # string SIGKILL
+  end
+
   def test_signal_false_ok
     data = Rperf.start(frequency: 500, signal: false) do
       5_000_000.times { 1 + 1 }

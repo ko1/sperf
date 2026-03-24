@@ -25,10 +25,13 @@ module Rperf
   #   otherwise (.pb.gz etc) → pprof protobuf (gzip compressed)
   def self.start(frequency: 1000, mode: :cpu, output: nil, verbose: false, format: nil, stat: false, signal: nil, aggregate: true)
     raise ArgumentError, "frequency must be a positive integer (got #{frequency.inspect})" unless frequency.is_a?(Integer) && frequency > 0
-    if signal.is_a?(Integer) && signal > 0
+    c_mode = mode == :cpu ? 0 : 1
+    c_signal = signal.nil? ? -1 : (signal ? signal.to_i : 0)
+    if c_signal > 0
       uncatchable = [Signal.list["KILL"], Signal.list["STOP"]].compact
-      if uncatchable.include?(signal)
-        raise ArgumentError, "signal #{signal} (#{Signal.signame(signal)}) cannot be caught; use a different signal"
+      if uncatchable.include?(c_signal)
+        name = Signal.signame(c_signal) rescue c_signal.to_s
+        raise ArgumentError, "signal #{c_signal} (#{name}) cannot be caught; use a different signal"
       end
     end
     @verbose = verbose || ENV["RPERF_VERBOSE"] == "1"
@@ -36,8 +39,6 @@ module Rperf
     @format = format
     @stat = stat
     @stat_start_mono = Process.clock_gettime(Process::CLOCK_MONOTONIC) if @stat
-    c_mode = mode == :cpu ? 0 : 1
-    c_signal = signal.nil? ? -1 : (signal ? signal.to_i : 0)
     _c_start(frequency, c_mode, aggregate, c_signal)
 
     if block_given?

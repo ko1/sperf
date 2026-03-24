@@ -602,7 +602,7 @@ rperf_try_swap(rperf_profiler_t *prof)
     int idx = atomic_load_explicit(&prof->active_idx, memory_order_relaxed);
     rperf_sample_buffer_t *buf = &prof->buffers[idx];
     if (buf->sample_count < RPERF_AGG_THRESHOLD) return;
-    if (atomic_load_explicit(&prof->swap_ready, memory_order_relaxed)) return; /* standby still being aggregated */
+    if (atomic_load_explicit(&prof->swap_ready, memory_order_acquire)) return; /* standby still being aggregated */
 
     /* Swap active buffer: release ensures buffer writes are visible to worker */
     atomic_store_explicit(&prof->active_idx, idx ^ 1, memory_order_release);
