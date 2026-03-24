@@ -1001,8 +1001,6 @@ rperf_resolve_frame(VALUE fval)
     VALUE label = rb_profile_frame_full_label(fval);
 
     if (NIL_P(path))  path  = rb_str_new_lit("<C method>");
-
-    if (NIL_P(path))  path  = rb_str_new_cstr("");
     if (NIL_P(label)) label = rb_str_new_cstr("");
 
     return rb_ary_new3(2, path, label);
@@ -1133,7 +1131,10 @@ rb_rperf_start(VALUE self, VALUE vfreq, VALUE vmode, VALUE vagg, VALUE vsig)
         memset(&sa, 0, sizeof(sa));
         sa.sa_handler = rperf_signal_handler;
         sa.sa_flags = SA_RESTART;
-        sigaction(g_profiler.timer_signal, &sa, &g_profiler.old_sigaction);
+        if (sigaction(g_profiler.timer_signal, &sa, &g_profiler.old_sigaction) != 0) {
+            g_profiler.running = 0;
+            goto timer_fail;
+        }
 
         /* Start worker thread first to get its kernel TID */
         g_profiler.worker_tid = 0;
@@ -1167,7 +1168,14 @@ rb_rperf_start(VALUE self, VALUE vfreq, VALUE vmode, VALUE vagg, VALUE vsig)
         its.it_value.tv_sec = 0;
         its.it_value.tv_nsec = 1000000000L / g_profiler.frequency;
         its.it_interval = its.it_value;
-        timer_settime(g_profiler.timer_id, 0, &its, NULL);
+        if (timer_settime(g_profiler.timer_id, 0, &its, NULL) != 0) {
+            timer_delete(g_profiler.timer_id);
+            g_profiler.running = 0;
+            sigaction(g_profiler.timer_signal, &g_profiler.old_sigaction, NULL);
+            CHECKED(pthread_cond_signal(&g_profiler.worker_cond));
+            CHECKED(pthread_join(g_profiler.worker_thread, NULL));
+            goto timer_fail;
+        }
     } else
 #endif
     {

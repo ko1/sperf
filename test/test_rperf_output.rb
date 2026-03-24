@@ -19,6 +19,23 @@ class TestRperfOutput < Test::Unit::TestCase
     end
   end
 
+  def test_pprof_encode_invalid_utf8
+    # Frame label with invalid UTF-8 bytes should not crash the encoder
+    invalid_label = "M\xFFthod".dup.force_encoding("ASCII-8BIT")
+    data = {
+      aggregated_samples: [
+        [[["/a.rb", invalid_label]], 1000],
+      ],
+      frequency: 100,
+      mode: :cpu,
+      total_weight: 1000,
+    }
+    result = Rperf::PProf.encode(data)
+    assert_operator result.bytesize, :>, 0
+    # First byte should be field 1, length-delimited (sample_type)
+    assert_equal 0x0a, result.getbyte(0)
+  end
+
   # --- Text ---
 
   def test_text_encode
@@ -84,6 +101,14 @@ class TestRperfOutput < Test::Unit::TestCase
   end
 
   # --- Collapsed ---
+
+  def test_collapsed_encode_empty
+    data = { aggregated_samples: [], frequency: 100, mode: :cpu }
+    assert_equal "", Rperf::Collapsed.encode(data)
+
+    data_nil = { frequency: 100, mode: :cpu }
+    assert_equal "", Rperf::Collapsed.encode(data_nil)
+  end
 
   def test_collapsed_encode
     data = {

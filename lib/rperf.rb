@@ -460,8 +460,10 @@ module Rperf
     module_function
 
     def encode(data)
+      samples = data[:aggregated_samples]
+      return "" if !samples || samples.empty?
       merged = Hash.new(0)
-      data[:aggregated_samples].each do |frames, weight|
+      samples.each do |frames, weight|
         key = frames.reverse.map { |_, label| label }.join(";")
         merged[key] += weight
       end
@@ -564,7 +566,7 @@ module Rperf
 
       # field 6: string_table (repeated string)
       string_table.each do |s|
-        buf << encode_bytes(6, s.encode("UTF-8"))
+        buf << encode_bytes(6, s.encode("UTF-8", invalid: :replace, undef: :replace))
       end
 
       # field 9: time_nanos (int64)
