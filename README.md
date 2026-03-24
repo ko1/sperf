@@ -21,7 +21,9 @@
 </p>
 
 <p align="center">
-  [Web site](https://ko1.github.io/rperf/), [Online manual](https://ko1.github.io/rperf/docs/manual/), [GitHub repository](https://github.com/ko1/rperf)
+  <a href='https://ko1.github.io/rperf/'>Web site</a>,
+  <a href='https://ko1.github.io/rperf/docs/manual/'>Online manual</a>,
+  <a href='https://github.com/ko1/rperf'>GitHub repository</a>
 </p>
 
 ## See It in Action
