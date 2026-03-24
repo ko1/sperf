@@ -26,7 +26,8 @@
 #define RPERF_INITIAL_SAMPLES 16384  /* >= AGG_THRESHOLD to avoid realloc before first aggregation */
 #define RPERF_INITIAL_FRAME_POOL (1024 * 1024 / sizeof(VALUE)) /* ~1MB */
 #define RPERF_AGG_THRESHOLD 10000  /* aggregate every N samples */
-#define RPERF_FRAME_TABLE_INITIAL 65536  /* pre-allocate to avoid realloc race with GC dmark */
+#define RPERF_FRAME_TABLE_INITIAL 4096
+#define RPERF_FRAME_TABLE_OLD_KEYS_MAX 16  /* max number of old keys arrays kept until stop */
 #define RPERF_AGG_TABLE_INITIAL 1024
 #define RPERF_STACK_POOL_INITIAL 4096
 
@@ -82,6 +83,9 @@ typedef struct rperf_frame_table {
     size_t capacity;
     uint32_t *buckets;        /* open addressing: stores index into keys[] */
     size_t bucket_capacity;
+    /* Old keys arrays kept alive for GC dmark safety until stop */
+    VALUE *old_keys[RPERF_FRAME_TABLE_OLD_KEYS_MAX];
+    int old_keys_count;
 } rperf_frame_table_t;
 
 /* ---- Aggregation table: stack → weight ---- */
@@ -187,10 +191,18 @@ rperf_profiler_mark(void *ptr)
                                 buf->frame_pool + buf->frame_pool_count);
         }
     }
-    /* Mark frame_table keys (unique frame VALUEs) */
-    if (prof->frame_table.keys && prof->frame_table.count > 0) {
-        rb_gc_mark_locations(prof->frame_table.keys + RPERF_SYNTHETIC_COUNT,
-                            prof->frame_table.keys + prof->frame_table.count);
+    /* Mark frame_table keys (unique frame VALUEs).
+     * Acquire count to synchronize with the release-store in insert,
+     * ensuring we see the keys pointer that is valid for [0, count).
+     * If we see an old count, both old and new keys arrays have valid
+     * data (old keys are kept alive in old_keys[]). */
+    {
+        size_t ft_count = __atomic_load_n(&prof->frame_table.count, __ATOMIC_ACQUIRE);
+        VALUE *ft_keys = prof->frame_table.keys;
+        if (ft_keys && ft_count > 0) {
+            rb_gc_mark_locations(ft_keys + RPERF_SYNTHETIC_COUNT,
+                                ft_keys + ft_count);
+        }
     }
 }
 
@@ -309,11 +321,15 @@ rperf_frame_table_init(rperf_frame_table_t *ft)
     ft->bucket_capacity = RPERF_FRAME_TABLE_INITIAL * 2;
     ft->buckets = (uint32_t *)malloc(ft->bucket_capacity * sizeof(uint32_t));
     memset(ft->buckets, 0xFF, ft->bucket_capacity * sizeof(uint32_t)); /* EMPTY */
+    ft->old_keys_count = 0;
 }
 
 static void
 rperf_frame_table_free(rperf_frame_table_t *ft)
 {
+    int i;
+    for (i = 0; i < ft->old_keys_count; i++)
+        free(ft->old_keys[i]);
     free(ft->keys);
     free(ft->buckets);
     memset(ft, 0, sizeof(*ft));
@@ -354,11 +370,22 @@ rperf_frame_table_insert(rperf_frame_table_t *ft, VALUE fval)
         idx = (idx + 1) % ft->bucket_capacity;
     }
 
-    /* Insert new entry.
-     * keys array is pre-allocated and never realloc'd to avoid race with GC dmark.
-     * If capacity is exhausted, return EMPTY to signal aggregation should stop. */
+    /* Insert new entry.  Grow keys array if capacity is exhausted.
+     * Cannot realloc in-place because GC dmark may concurrently read
+     * the old keys pointer.  Instead, allocate new, copy, swap pointer,
+     * and keep old array alive until stop. */
     if (ft->count >= ft->capacity) {
-        return RPERF_FRAME_TABLE_EMPTY;
+        size_t new_cap = ft->capacity * 2;
+        VALUE *new_keys = (VALUE *)calloc(new_cap, sizeof(VALUE));
+        if (!new_keys) return RPERF_FRAME_TABLE_EMPTY;
+        memcpy(new_keys, ft->keys, ft->capacity * sizeof(VALUE));
+        /* Save old keys for deferred free (GC dmark safety) */
+        if (ft->old_keys_count < RPERF_FRAME_TABLE_OLD_KEYS_MAX)
+            ft->old_keys[ft->old_keys_count++] = ft->keys;
+        else
+            free(ft->keys); /* unlikely: >16 doublings */
+        ft->keys = new_keys;
+        ft->capacity = new_cap;
     }
 
     uint32_t frame_id = (uint32_t)ft->count;

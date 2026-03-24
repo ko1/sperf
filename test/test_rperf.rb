@@ -321,6 +321,20 @@ class TestRperf < Test::Unit::TestCase
       "Surviving thread's max weight (#{max_weight2}ns) should not include inter-session gap"
   end
 
+  # Frame table starts at 4096 entries.  Deep stacks with recursion
+  # generate many unique frames, exercising dynamic growth.
+  def test_frame_table_growth
+    Rperf.start(frequency: 1000)
+
+    # Generate many unique call stacks via recursion
+    deep_recurse(200) { busy_wait(2.0) }
+
+    data = Rperf.stop
+    assert_not_nil data
+    assert_operator data[:aggregated_samples].size, :>, 0
+    assert_valid_samples(data[:aggregated_samples])
+  end
+
   # Multiple start/stop cycles to check no resource leaks cause crashes
   def test_repeated_start_stop
     10.times do |cycle|
