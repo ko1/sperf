@@ -30,6 +30,7 @@ module Rperf
     c_mode = mode == :cpu ? 0 : 1
     c_signal = signal.nil? ? -1 : (signal ? signal.to_i : 0)
     if c_signal > 0
+      raise ArgumentError, "signal mode is only supported on Linux" unless RUBY_PLATFORM =~ /linux/
       uncatchable = [Signal.list["KILL"], Signal.list["STOP"]].compact
       if uncatchable.include?(c_signal)
         name = Signal.signame(c_signal) rescue c_signal.to_s

@@ -238,16 +238,22 @@ class TestRperfProfiler < Test::Unit::TestCase
     assert_raise(ArgumentError) { Rperf.start(frequency: 10_001) }
   end
 
-  def test_signal_kill_raises
-    assert_raise(ArgumentError) { Rperf.start(signal: 9) }
-  end
+  if RUBY_PLATFORM =~ /linux/
+    def test_signal_kill_raises
+      assert_raise(ArgumentError) { Rperf.start(signal: 9) }
+    end
 
-  def test_signal_stop_raises
-    assert_raise(ArgumentError) { Rperf.start(signal: 19) }
-  end
+    def test_signal_stop_raises
+      assert_raise(ArgumentError) { Rperf.start(signal: Signal.list["STOP"]) }
+    end
 
-  def test_signal_string_kill_raises
-    assert_raise(ArgumentError) { Rperf.start(signal: "9") }
+    def test_signal_string_kill_raises
+      assert_raise(ArgumentError) { Rperf.start(signal: "9") }
+    end
+  else
+    def test_signal_not_supported
+      assert_raise(ArgumentError) { Rperf.start(signal: 34) }
+    end
   end
 
   def test_signal_false_ok

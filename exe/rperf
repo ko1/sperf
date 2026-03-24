@@ -221,6 +221,10 @@ if frequency > 10_000
 end
 
 if signal && signal != "false"
+  unless RUBY_PLATFORM =~ /linux/
+    $stderr.puts "Error: signal mode is only supported on Linux"
+    exit 1
+  end
   sig_num = signal.to_i
   uncatchable = [Signal.list["KILL"], Signal.list["STOP"]].compact
   if uncatchable.include?(sig_num)
