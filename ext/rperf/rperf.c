@@ -7,14 +7,19 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
-#include <assert.h>
 #include <stdatomic.h>
 #ifdef __linux__
 #include <sys/syscall.h>
 #endif
 
-/* Checked pthread wrappers — assert on unexpected errors */
-#define CHECKED(call) do { int _r = (call); assert(_r == 0 && #call); (void)_r; } while (0)
+/* Checked pthread wrappers — always active regardless of NDEBUG */
+#define CHECKED(call) do { \
+    int _r = (call); \
+    if (_r != 0) { \
+        fprintf(stderr, "rperf: %s failed: %s\n", #call, strerror(_r)); \
+        abort(); \
+    } \
+} while (0)
 
 #ifdef __linux__
 #define RPERF_USE_TIMER_SIGNAL 1
@@ -28,7 +33,7 @@
 #define RPERF_INITIAL_FRAME_POOL (1024 * 1024 / sizeof(VALUE)) /* ~1MB */
 #define RPERF_AGG_THRESHOLD 10000  /* aggregate every N samples */
 #define RPERF_FRAME_TABLE_INITIAL 4096
-#define RPERF_FRAME_TABLE_OLD_KEYS_MAX 16  /* max number of old keys arrays kept until stop */
+#define RPERF_FRAME_TABLE_OLD_KEYS_INITIAL 16
 #define RPERF_AGG_TABLE_INITIAL 1024
 #define RPERF_STACK_POOL_INITIAL 4096
 
@@ -85,8 +90,9 @@ typedef struct rperf_frame_table {
     uint32_t *buckets;        /* open addressing: stores index into keys[] */
     size_t bucket_capacity;
     /* Old keys arrays kept alive for GC dmark safety until stop */
-    VALUE *old_keys[RPERF_FRAME_TABLE_OLD_KEYS_MAX];
+    VALUE **old_keys;
     int old_keys_count;
+    int old_keys_capacity;
 } rperf_frame_table_t;
 
 /* ---- Aggregation table: stack → weight ---- */
@@ -323,6 +329,14 @@ rperf_frame_table_init(rperf_frame_table_t *ft)
     if (!ft->buckets) { free(keys); atomic_store_explicit(&ft->keys, NULL, memory_order_relaxed); return -1; }
     memset(ft->buckets, 0xFF, ft->bucket_capacity * sizeof(uint32_t)); /* EMPTY */
     ft->old_keys_count = 0;
+    ft->old_keys_capacity = RPERF_FRAME_TABLE_OLD_KEYS_INITIAL;
+    ft->old_keys = (VALUE **)malloc(ft->old_keys_capacity * sizeof(VALUE *));
+    if (!ft->old_keys) {
+        free(ft->buckets);
+        free(keys);
+        atomic_store_explicit(&ft->keys, NULL, memory_order_relaxed);
+        return -1;
+    }
     return 0;
 }
 
@@ -332,6 +346,7 @@ rperf_frame_table_free(rperf_frame_table_t *ft)
     int i;
     for (i = 0; i < ft->old_keys_count; i++)
         free(ft->old_keys[i]);
+    free(ft->old_keys);
     free(atomic_load_explicit(&ft->keys, memory_order_relaxed));
     free(ft->buckets);
     memset(ft, 0, sizeof(*ft));
@@ -385,10 +400,14 @@ rperf_frame_table_insert(rperf_frame_table_t *ft, VALUE fval)
         if (!new_keys) return RPERF_FRAME_TABLE_EMPTY;
         memcpy(new_keys, keys, ft->capacity * sizeof(VALUE));
         /* Save old keys for deferred free (GC dmark safety) */
-        if (ft->old_keys_count < RPERF_FRAME_TABLE_OLD_KEYS_MAX)
-            ft->old_keys[ft->old_keys_count++] = keys;
-        else
-            free(keys); /* unlikely: >16 doublings */
+        if (ft->old_keys_count >= ft->old_keys_capacity) {
+            int new_old_cap = ft->old_keys_capacity * 2;
+            VALUE **new_old = (VALUE **)realloc(ft->old_keys, new_old_cap * sizeof(VALUE *));
+            if (!new_old) { free(new_keys); return RPERF_FRAME_TABLE_EMPTY; }
+            ft->old_keys = new_old;
+            ft->old_keys_capacity = new_old_cap;
+        }
+        ft->old_keys[ft->old_keys_count++] = keys;
         keys = new_keys;
         atomic_store_explicit(&ft->keys, new_keys, memory_order_release);
         ft->capacity = new_cap;
@@ -934,7 +953,10 @@ rperf_worker_nanosleep_func(void *arg)
     CHECKED(pthread_mutex_lock(&prof->worker_mutex));
     while (prof->running) {
         int ret = pthread_cond_timedwait(&prof->worker_cond, &prof->worker_mutex, &deadline);
-        assert(ret == 0 || ret == ETIMEDOUT);
+        if (ret != 0 && ret != ETIMEDOUT) {
+            fprintf(stderr, "rperf: pthread_cond_timedwait failed: %s\n", strerror(ret));
+            abort();
+        }
         if (ret == ETIMEDOUT) {
             prof->stats.trigger_count++;
             rb_postponed_job_trigger(prof->pj_handle);
