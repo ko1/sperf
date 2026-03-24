@@ -13,7 +13,7 @@ rperf is a safepoint-based sampling performance profiler for Ruby. It uses actua
 ext/rperf/rperf.c    -- C extension: timer (signal or thread), GVL/GC event hooks, sampling
 lib/rperf.rb         -- Ruby API: start/stop, encoders (PProf, Collapsed, Text), stat output
 exe/rperf            -- CLI: record, stat, report, diff, help subcommands
-test/test_rperf.rb   -- Unit tests
+test/                -- Unit tests (per-component: profiler, gvl, output, stat, cli, fork)
 benchmark/           -- Accuracy benchmark suite (see benchmark/README.md)
 ```
 
@@ -64,9 +64,9 @@ See `benchmark/README.md` for full documentation.
 ## Coding Notes
 
 - The C extension uses a single global `rperf_profiler_t`. Only one profiling session at a time.
-- `Rperf.start` accepts `signal:` option (Linux only): `nil`/omitted = timer signal (default), `false`/`0` = nanosleep thread, positive integer = specific RT signal number.
+- `Rperf.start` accepts `signal:` option (Linux only): `nil`/omitted = timer signal (default), `false`/`0` = nanosleep thread, positive integer = specific signal number (SIGKILL/SIGSTOP rejected). Frequency is validated: 1..10000 (10KHz max).
 - C extension exports `_c_start`/`_c_stop`; Ruby wraps them as `Rperf.start`/`Rperf.stop` with output/verbose/block support.
-- Frame pool (`VALUE *frame_pool`, initial ~1MB) stores raw frame VALUEs from `rb_profile_thread_frames`. A TypedData wrapper with `dmark` using `rb_gc_mark_locations` keeps them alive across GC.
+- Frame pool (`VALUE *frame_pool`, initial ~1MB) stores raw frame VALUEs from `rb_profile_thread_frames`. A TypedData wrapper with `dmark` using `rb_gc_mark_locations` keeps them alive across GC. Frame table keys array grows dynamically (starts at 4096, 2× on demand) with atomic pointer swaps for GC dmark safety.
 - `rb_profile_thread_frames` writes directly into the frame pool (no intermediate buffer).
 - Sample buffer and frame pool both grow by 2x on demand via `realloc`.
 - Per-thread data (`rperf_thread_data_t`) is created via `rperf_thread_data_create()` and tracks per-thread timing state.
