@@ -1055,6 +1055,7 @@ rb_rperf_start(VALUE self, VALUE vfreq, VALUE vmode, VALUE vagg, VALUE vsig)
         VALUE cur_thread = rb_thread_current();
         rperf_thread_data_t *td = rperf_thread_data_create(&g_profiler, cur_thread);
         if (!td) {
+            rb_remove_event_hook(rperf_gc_event_hook);
             rb_internal_thread_remove_event_hook(g_profiler.thread_hook);
             g_profiler.thread_hook = NULL;
             if (g_profiler.aggregate) {
@@ -1141,6 +1142,7 @@ timer_fail:
                 rb_internal_thread_specific_set(cur, g_profiler.ts_key, NULL);
             }
         }
+        rb_remove_event_hook(rperf_gc_event_hook);
         rb_internal_thread_remove_event_hook(g_profiler.thread_hook);
         g_profiler.thread_hook = NULL;
         if (g_profiler.aggregate) {
