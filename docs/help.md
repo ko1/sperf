@@ -106,16 +106,17 @@ Rperf.save("profile.txt", data)
 nil if profiler was not running; otherwise a Hash:
 
 ```ruby
-{ mode: :cpu,             # or :wall
+{ mode: :cpu,                      # or :wall
   frequency: 500,
   sampling_count: 1234,
   sampling_time_ns: 56789,
-  start_time_ns: 17740..., # CLOCK_REALTIME epoch nanos
-  duration_ns: 10000000,   # profiling duration in nanos
-  aggregated_samples: [    # when aggregate: true (default)
-    [frames, weight, seq], #   frames: [[path, label], ...] deepest-first
-    ...                    #   weight: Integer (nanoseconds, merged per unique stack)
-  ],                       #   seq: Integer (thread sequence, 1-based)
+  detected_thread_count: 4,        # threads seen during profiling
+  start_time_ns: 17740...,         # CLOCK_REALTIME epoch nanos
+  duration_ns: 10000000,           # profiling duration in nanos
+  aggregated_samples: [            # when aggregate: true (default)
+    [frames, weight, seq],         #   frames: [[path, label], ...] deepest-first
+    ...                            #   weight: Integer (nanoseconds, merged per unique stack)
+  ],                               #   seq: Integer (thread sequence, 1-based)
   # --- OR ---
   raw_samples: [           # when aggregate: false
     [frames, weight, seq], #   one entry per timer sample (not merged)

@@ -85,19 +85,20 @@ data = Rperf.stop
 
 ```ruby
 {
-  mode: :cpu,              # or :wall
+  mode: :cpu,               # or :wall
   frequency: 1000,
-  sampling_count: 1234,    # number of timer callbacks
-  sampling_time_ns: 56789, # total time spent sampling (overhead)
-  trigger_count: 1234,     # number of timer triggers
-  start_time_ns: 17740..., # CLOCK_REALTIME epoch nanos
-  duration_ns: 10000000,   # profiling duration in nanos
-  unique_frames: 42,       # unique frame count (aggregate: true only)
-  unique_stacks: 120,      # unique stack count (aggregate: true only)
-  samples: [               # Array of [frames, weight, thread_seq]
-    [frames, weight, seq], #   frames: [[path, label], ...] deepest-first
-    ...                    #   weight: Integer (nanoseconds)
-  ]                        #   seq: Integer (thread sequence, 1-based)
+  sampling_count: 1234,     # number of timer callbacks
+  sampling_time_ns: 56789,  # total time spent sampling (overhead)
+  trigger_count: 1234,      # number of timer triggers
+  detected_thread_count: 4, # threads seen during profiling
+  start_time_ns: 17740...,  # CLOCK_REALTIME epoch nanos
+  duration_ns: 10000000,    # profiling duration in nanos
+  unique_frames: 42,        # unique frame count (aggregate: true only)
+  unique_stacks: 120,       # unique stack count (aggregate: true only)
+  samples: [                # Array of [frames, weight, thread_seq]
+    [frames, weight, seq],  #   frames: [[path, label], ...] deepest-first
+    ...                     #   weight: Integer (nanoseconds)
+  ]                         #   seq: Integer (thread sequence, 1-based)
 }
 ```
 

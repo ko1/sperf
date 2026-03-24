@@ -1979,19 +1979,20 @@ data = Rperf.stop
 <p><code>Rperf.stop</code> returns <code>nil</code> if the profiler was not running. Otherwise it returns a Hash:</p>
 
 <pre><code class="language-ruby">{
-  mode: :cpu,              # or :wall
+  mode: :cpu,               # or :wall
   frequency: 1000,
-  sampling_count: 1234,    # number of timer callbacks
-  sampling_time_ns: 56789, # total time spent sampling (overhead)
-  trigger_count: 1234,     # number of timer triggers
-  start_time_ns: 17740..., # CLOCK_REALTIME epoch nanos
-  duration_ns: 10000000,   # profiling duration in nanos
-  unique_frames: 42,       # unique frame count (aggregate: true only)
-  unique_stacks: 120,      # unique stack count (aggregate: true only)
-  samples: [               # Array of [frames, weight, thread_seq]
-    [frames, weight, seq], #   frames: [[path, label], ...] deepest-first
-    ...                    #   weight: Integer (nanoseconds)
-  ]                        #   seq: Integer (thread sequence, 1-based)
+  sampling_count: 1234,     # number of timer callbacks
+  sampling_time_ns: 56789,  # total time spent sampling (overhead)
+  trigger_count: 1234,      # number of timer triggers
+  detected_thread_count: 4, # threads seen during profiling
+  start_time_ns: 17740...,  # CLOCK_REALTIME epoch nanos
+  duration_ns: 10000000,    # profiling duration in nanos
+  unique_frames: 42,        # unique frame count (aggregate: true only)
+  unique_stacks: 120,       # unique stack count (aggregate: true only)
+  samples: [                # Array of [frames, weight, thread_seq]
+    [frames, weight, seq],  #   frames: [[path, label], ...] deepest-first
+    ...                     #   weight: Integer (nanoseconds)
+  ]                         #   seq: Integer (thread sequence, 1-based)
 }
 </code></pre>
 
@@ -2831,15 +2832,15 @@ stateDiagram-v2
     </tr>
     <tr>
       <td>Frame table keys</td>
-      <td>65,536</td>
+      <td>4,096</td>
       <td>8B (VALUE)</td>
-      <td>512KB</td>
+      <td>32KB</td>
     </tr>
     <tr>
       <td>Frame table buckets</td>
-      <td>131,072</td>
+      <td>8,192</td>
       <td>4B (uint32)</td>
-      <td>512KB</td>
+      <td>32KB</td>
     </tr>
     <tr>
       <td>Agg table buckets</td>
@@ -2856,7 +2857,7 @@ stateDiagram-v2
   </tbody>
 </table>
 
-<p>Total: ~4.6MB with <code>aggregate: true</code>, ~1.5MB with <code>aggregate: false</code> (single buffer only).</p>
+<p>Total: ~3.6MB with <code>aggregate: true</code>, ~1.5MB with <code>aggregate: false</code> (single buffer only). Frame table and aggregation table grow dynamically as needed.</p>
 
 <h2 id="07-internals--gc-safety">7.9 GC safety</h2>
 
@@ -2867,14 +2868,14 @@ stateDiagram-v2
   <li><strong>Frame table keys</strong> (unique frame VALUEs, excluding synthetic frame slots)</li>
 </ol>
 
-<p>The frame table keys are pre-allocated (65,536 entries) and never reallocated, avoiding race conditions with the GC’s mark phase which can run concurrently with the aggregation thread.</p>
+<p>The frame table keys array starts at 4,096 entries and grows by 2× when full. Growth allocates a new array, copies existing data, and swaps the pointer atomically (<code>memory_order_release</code>). The old array is kept alive until <code>stop</code> to prevent use-after-free if GC’s mark phase is reading it concurrently. The <code>dmark</code> function loads the keys pointer with <code>memory_order_acquire</code> and the count with <code>memory_order_acquire</code> to ensure a consistent view.</p>
 
 <h2 id="07-internals--per-thread-data">7.10 Per-thread data</h2>
 
 <p>Each thread gets a <code>rperf_thread_data_t</code> struct stored via Ruby’s thread-specific data API (<code>rb_internal_thread_specific_set</code>). This tracks:</p>
 
 <ul>
-  <li><code>prev_cpu_ns</code>: Previous CPU time reading (for computing weight)</li>
+  <li><code>prev_time_ns</code>: Previous time reading (for computing weight)</li>
   <li><code>prev_wall_ns</code>: Previous wall time reading</li>
   <li><code>suspended_at_ns</code>: Wall timestamp when thread was suspended</li>
   <li><code>ready_at_ns</code>: Wall timestamp when thread became ready</li>

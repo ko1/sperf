@@ -12,6 +12,8 @@ class TestRperfProfiler < Test::Unit::TestCase
     assert_include data, :aggregated_samples
     assert_include data, :frequency
     assert_equal 100, data[:frequency]
+    assert_include data, :detected_thread_count
+    assert_operator data[:detected_thread_count], :>=, 1
   end
 
   def test_cpu_bound_weight

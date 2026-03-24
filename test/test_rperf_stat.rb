@@ -18,6 +18,7 @@ class TestRperfStat < Test::Unit::TestCase
     assert_include output, "Performance stats"
     assert_include output, "real"
     assert_include output, "CPU execution"
+    assert_include output, "[Ruby] detected threads"
   end
 
   def test_print_stat
@@ -31,6 +32,7 @@ class TestRperfStat < Test::Unit::TestCase
       mode: :wall,
       sampling_count: 100,
       sampling_time_ns: 500_000,
+      detected_thread_count: 3,
     }
 
     old_stderr = $stderr
@@ -55,6 +57,7 @@ class TestRperfStat < Test::Unit::TestCase
     assert_include output, "[Ruby] GC time"
     assert_include output, "[Ruby] allocated objects"
     assert_include output, "[Ruby] freed objects"
+    assert_include output, "[Ruby] detected threads"
     assert_include output, "[OS] peak memory"
     assert_include output, "samples"
     assert_include output, "triggers"

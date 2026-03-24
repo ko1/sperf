@@ -222,7 +222,7 @@ module Rperf
     if samples_raw.size > 0
       breakdown, total_weight = compute_stat_breakdown(samples_raw)
       print_stat_breakdown(breakdown, total_weight)
-      print_stat_runtime_info
+      print_stat_runtime_info(data)
       print_stat_system_info
       print_stat_report(data) if ENV["RPERF_STAT_REPORT"] == "1"
       print_stat_footer(samples_raw, real_ns, data)
@@ -270,7 +270,9 @@ module Rperf
   end
   private_class_method :print_stat_breakdown
 
-  def self.print_stat_runtime_info
+  def self.print_stat_runtime_info(data)
+    thread_count = data[:detected_thread_count] || 0
+    $stderr.puts STAT_LINE.call(format_integer(thread_count), "  ", "[Ruby] detected threads") if thread_count > 0
     gc = GC.stat
     $stderr.puts STAT_LINE.call(format_ms(gc[:time] * 1_000_000), "ms",
                                 "[Ruby] GC time (%s count: %s minor, %s major)" % [

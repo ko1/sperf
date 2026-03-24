@@ -1240,10 +1240,11 @@ rb_rperf_stop(VALUE self)
     /* frequency */
     rb_hash_aset(result, ID2SYM(rb_intern("frequency")), INT2NUM(g_profiler.frequency));
 
-    /* trigger_count, sampling_count, sampling_time_ns */
+    /* trigger_count, sampling_count, sampling_time_ns, detected_thread_count */
     rb_hash_aset(result, ID2SYM(rb_intern("trigger_count")), SIZET2NUM(g_profiler.stats.trigger_count));
     rb_hash_aset(result, ID2SYM(rb_intern("sampling_count")), SIZET2NUM(g_profiler.stats.sampling_count));
     rb_hash_aset(result, ID2SYM(rb_intern("sampling_time_ns")), LONG2NUM(g_profiler.stats.sampling_total_ns));
+    rb_hash_aset(result, ID2SYM(rb_intern("detected_thread_count")), INT2NUM(g_profiler.next_thread_seq));
 
     /* aggregation stats */
     if (g_profiler.aggregate) {
