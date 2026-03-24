@@ -134,6 +134,7 @@ mode = (subcommand == "stat") ? "wall" : "cpu"
 format = nil
 signal = nil
 verbose = false
+aggregate = true
 
 parser = OptionParser.new do |opts|
   opts.banner = USAGE
@@ -146,11 +147,12 @@ parser = OptionParser.new do |opts|
     frequency = v
   end
 
-  if subcommand == "record"
-    opts.on("-m", "--mode MODE", %w[cpu wall], "Profiling mode: cpu or wall (default: cpu)") do |v|
-      mode = v
-    end
+  default_mode = (subcommand == "stat") ? "wall" : "cpu"
+  opts.on("-m", "--mode MODE", %w[cpu wall], "Profiling mode: cpu or wall (default: #{default_mode})") do |v|
+    mode = v
+  end
 
+  if subcommand == "record"
     opts.on("--format FORMAT", %w[pprof collapsed text],
             "Output format: pprof, collapsed, or text (default: auto from extension)") do |v|
       format = v
@@ -159,6 +161,10 @@ parser = OptionParser.new do |opts|
 
   opts.on("--signal VALUE", "Timer signal (Linux only): signal number, or 'false' for nanosleep thread") do |v|
     signal = (v == "false") ? "false" : v
+  end
+
+  opts.on("--no-aggregate", "Disable sample aggregation (keep raw samples)") do
+    aggregate = false
   end
 
   opts.on("-v", "--verbose", "Print sampling statistics to stderr") do
@@ -198,6 +204,7 @@ ENV["RPERF_MODE"] = mode
 ENV["RPERF_FORMAT"] = format if format
 ENV["RPERF_VERBOSE"] = "1" if verbose
 ENV["RPERF_SIGNAL"] = signal if signal
+ENV["RPERF_AGGREGATE"] = "0" unless aggregate
 
 if subcommand == "stat"
   ENV["RPERF_STAT"] = "1"

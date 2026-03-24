@@ -104,7 +104,7 @@ module Rperf
   def self.print_stats(data)
     count = data[:sampling_count] || 0
     total_ns = data[:sampling_time_ns] || 0
-    samples = data[:samples]&.size || 0
+    sample_count = data[:sampling_count] || 0
     mode = data[:mode] || :cpu
     frequency = data[:frequency] || 0
 
@@ -113,7 +113,7 @@ module Rperf
 
     $stderr.puts "[rperf] mode=#{mode} frequency=#{frequency}Hz"
     $stderr.puts "[rperf] sampling: #{count} calls, #{format("%.2f", total_ms)}ms total, #{format("%.1f", avg_us)}us/call avg"
-    $stderr.puts "[rperf] samples recorded: #{samples}"
+    $stderr.puts "[rperf] samples recorded: #{sample_count}"
 
     print_top(data)
   end
@@ -320,8 +320,9 @@ module Rperf
     triggers = data[:trigger_count] || 0
     overhead_pct = real_ns > 0 ? (data[:sampling_time_ns] || 0) * 100.0 / real_ns : 0.0
     $stderr.puts
+    samples = data[:sampling_count] || samples_raw.size
     $stderr.puts format("  %d samples / %d triggers, %.1f%% profiler overhead",
-                        samples_raw.size, triggers, overhead_pct)
+                        samples, triggers, overhead_pct)
   end
   private_class_method :print_stat_footer
 
