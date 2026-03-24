@@ -20,6 +20,10 @@
   pprof / collapsed stacks / text report &nbsp;·&nbsp; CPU mode & wall mode (GVL + GC tracking)
 </p>
 
+<p align="center">
+  [Web site](https://ko1.github.io/rperf/), [Online manual](https://ko1.github.io/rperf/docs/manual/), [GitHub repository](https://github.com/ko1/rperf)
+</p>
+
 ## See It in Action
 
 ```bash
