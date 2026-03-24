@@ -729,7 +729,11 @@ rperf_handle_resumed(rperf_profiler_t *prof, VALUE thread)
     /* Record GVL blocked/wait samples (wall mode only).
      * Capture backtrace here (not at SUSPENDED) so that frame_start always
      * indexes into the current active buffer, avoiding mismatch after a
-     * double-buffer swap. The Ruby stack is unchanged while off-GVL. */
+     * double-buffer swap. The Ruby stack is unchanged while off-GVL.
+     *
+     * Both samples are written directly into the same buffer before calling
+     * rperf_try_swap, so that a swap triggered by the first sample cannot
+     * move the second into a different buffer with a stale frame_start. */
     if (prof->mode == 1 && td->suspended_at_ns > 0) {
         rperf_sample_buffer_t *buf = &prof->buffers[atomic_load_explicit(&prof->active_idx, memory_order_relaxed)];
         if (rperf_ensure_frame_pool_capacity(buf, RPERF_MAX_STACK_DEPTH) < 0) goto skip_gvl;
@@ -739,16 +743,34 @@ rperf_handle_resumed(rperf_profiler_t *prof, VALUE thread)
         if (depth <= 0) goto skip_gvl;
         buf->frame_pool_count += depth;
 
+        /* Write both samples directly into buf (bypass rperf_record_sample
+         * to avoid a mid-pair buffer swap) */
         if (td->ready_at_ns > 0 && td->ready_at_ns > td->suspended_at_ns) {
             int64_t blocked_ns = td->ready_at_ns - td->suspended_at_ns;
-            rperf_record_sample(prof, frame_start, depth, blocked_ns,
-                                RPERF_SAMPLE_GVL_BLOCKED, td->thread_seq);
+            if (blocked_ns > 0 && rperf_ensure_sample_capacity(buf) == 0) {
+                rperf_sample_t *s = &buf->samples[buf->sample_count];
+                s->depth = depth;
+                s->frame_start = frame_start;
+                s->weight = blocked_ns;
+                s->type = RPERF_SAMPLE_GVL_BLOCKED;
+                s->thread_seq = td->thread_seq;
+                buf->sample_count++;
+            }
         }
         if (td->ready_at_ns > 0 && wall_now > td->ready_at_ns) {
             int64_t wait_ns = wall_now - td->ready_at_ns;
-            rperf_record_sample(prof, frame_start, depth, wait_ns,
-                                RPERF_SAMPLE_GVL_WAIT, td->thread_seq);
+            if (wait_ns > 0 && rperf_ensure_sample_capacity(buf) == 0) {
+                rperf_sample_t *s = &buf->samples[buf->sample_count];
+                s->depth = depth;
+                s->frame_start = frame_start;
+                s->weight = wait_ns;
+                s->type = RPERF_SAMPLE_GVL_WAIT;
+                s->thread_seq = td->thread_seq;
+                buf->sample_count++;
+            }
         }
+
+        rperf_try_swap(prof);
     }
 skip_gvl:
 
