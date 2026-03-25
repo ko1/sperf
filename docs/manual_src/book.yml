@@ -15,10 +15,10 @@ chapters:
       - 03-cli-usage.md
       - 04-library-usage.md
       - 04a-framework-integration.md
-      - 05-output-formats.md
+      - 05-interpreting-results.md
   - part: part3.md
     chapters:
-      - 06-interpreting-results.md
+      - 06-output-formats.md
       - 07-internals.md
   - appendix:
     - a1-reference.md
