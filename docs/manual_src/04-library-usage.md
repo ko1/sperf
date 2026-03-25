@@ -154,7 +154,7 @@ end
 
 ## Sample labels
 
-[`Rperf.label`](#index:Rperf.label) attaches key-value labels to the current thread's samples. Labels appear in [pprof](#index:pprof) sample labels, enabling per-context filtering (e.g., per-request profiling).
+[`Rperf.label`](#index:Rperf.label) attaches key-value labels to the current thread's samples. Labels appear in [pprof](#index:pprof) sample labels, enabling per-context filtering (e.g., per-request profiling). If profiling is not running, `label` is silently ignored — safe to call unconditionally (e.g., from Rack middleware).
 
 ### Block form
 

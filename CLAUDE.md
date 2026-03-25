@@ -61,7 +61,7 @@ See `benchmark/README.md` for full documentation.
 - **Fork safety**: `pthread_atfork` child handler silently stops profiling in the child process. Clears timer/signal state, removes event hooks, and frees sample/frame buffers. The child can start a fresh profiling session; the parent continues unaffected.
 - **Two clock modes**: cpu (`CLOCK_THREAD_CPUTIME_ID`) and wall (`CLOCK_MONOTONIC`).
 - **Method-level profiling**: No line numbers. Frame labels use `rb_profile_frame_full_label` for qualified names (e.g., `Integer#times`).
-- **Sample labels**: `Rperf.label(key: value)` attaches per-thread key-value labels to samples. Label sets are interned in Ruby (Hash → integer ID). C stores only the integer `label_set_id` per thread/sample — zero hot-path overhead beyond one integer copy. Labels are written into pprof `Sample.label` fields at encode time. The agg_table key includes `label_set_id` so same-stack different-label samples are kept separate.
+- **Sample labels**: `Rperf.label(key: value)` attaches per-thread key-value labels to samples. Label sets are interned in Ruby (Hash → integer ID). C stores only the integer `label_set_id` per thread/sample — zero hot-path overhead beyond one integer copy. Labels are written into pprof `Sample.label` fields at encode time. The agg_table key includes `label_set_id` so same-stack different-label samples are kept separate. If profiling is not running, `label` is silently ignored (safe to call unconditionally, e.g., from Rack middleware).
 
 ## Coding Notes
 

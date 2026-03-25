@@ -731,7 +731,7 @@ rperf_handle_suspended(rperf_profiler_t *prof, VALUE thread, rperf_thread_data_t
 }
 
 static void
-rperf_handle_ready(rperf_profiler_t *prof, rperf_thread_data_t *td)
+rperf_handle_ready(rperf_thread_data_t *td)
 {
     /* May NOT have GVL — only simple C operations allowed */
     if (!td) return;
@@ -814,7 +814,7 @@ rperf_thread_event_hook(rb_event_flag_t event, const rb_internal_thread_event_da
     if (event & RUBY_INTERNAL_THREAD_EVENT_SUSPENDED)
         rperf_handle_suspended(prof, thread, td);
     else if (event & RUBY_INTERNAL_THREAD_EVENT_READY)
-        rperf_handle_ready(prof, td);
+        rperf_handle_ready(td);
     else if (event & RUBY_INTERNAL_THREAD_EVENT_RESUMED)
         rperf_handle_resumed(prof, thread, td);
     else if (event & RUBY_INTERNAL_THREAD_EVENT_EXITED)
@@ -1517,9 +1517,7 @@ rb_rperf_snapshot(VALUE self, VALUE vclear)
 static VALUE
 rb_rperf_set_label(VALUE self, VALUE vid)
 {
-    if (!g_profiler.running) {
-        rb_raise(rb_eRuntimeError, "set_label requires profiling to be running");
-    }
+    if (!g_profiler.running) return vid;
 
     int label_set_id = NUM2INT(vid);
     VALUE thread = rb_thread_current();

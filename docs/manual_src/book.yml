@@ -14,6 +14,7 @@ chapters:
     chapters:
       - 03-cli-usage.md
       - 04-library-usage.md
+      - 04a-framework-integration.md
       - 05-output-formats.md
   - part: part3.md
     chapters:

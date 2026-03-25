@@ -70,6 +70,25 @@ Rperf.label(request: "abc") do
   # samples inside get request="abc" label
 end
 Rperf.labels       # get current labels
+
+# Rack middleware (labels requests by endpoint)
+require "rperf/middleware"
+use Rperf::Middleware                    # Rails: config.middleware.use Rperf::Middleware
+use Rperf::Middleware, label_key: :route # custom label key
+
+# Active Job (labels jobs by class name)
+require "rperf/active_job"
+class ApplicationJob < ActiveJob::Base
+  include Rperf::ActiveJobMiddleware
+end
+
+# Sidekiq (labels jobs by worker class name)
+require "rperf/sidekiq"
+Sidekiq.configure_server do |config|
+  config.server_middleware do |chain|
+    chain.add Rperf::SidekiqMiddleware
+  end
+end
 ```
 
 ## Environment variables

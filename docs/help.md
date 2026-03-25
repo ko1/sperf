@@ -176,6 +176,7 @@ end
 
 Attaches key-value labels to the current thread's samples. Labels appear
 in pprof sample labels, enabling per-context filtering (e.g., per-request).
+If profiling is not running, labels are silently ignored (no error).
 
 ```ruby
 # Block form — labels are restored when the block exits
@@ -217,6 +218,43 @@ Returns the current thread's labels as a Hash. Empty hash if none set.
 
 Writes data to path. format: :pprof, :collapsed, or :text.
 nil auto-detects from extension.
+
+### Rperf::Middleware (Rack)
+
+Labels samples with the request endpoint. Requires `require "rperf/middleware"`.
+
+```ruby
+# Rails
+Rails.application.config.middleware.use Rperf::Middleware
+
+# Sinatra
+use Rperf::Middleware
+```
+
+The middleware only sets labels — start profiling separately.
+Option: `label_key:` (default: `:endpoint`).
+
+### Rperf::ActiveJobMiddleware
+
+Labels samples with the job class name. Requires `require "rperf/active_job"`.
+
+```ruby
+class ApplicationJob < ActiveJob::Base
+  include Rperf::ActiveJobMiddleware
+end
+```
+
+### Rperf::SidekiqMiddleware
+
+Labels samples with the worker class name. Requires `require "rperf/sidekiq"`.
+
+```ruby
+Sidekiq.configure_server do |config|
+  config.server_middleware do |chain|
+    chain.add Rperf::SidekiqMiddleware
+  end
+end
+```
 
 ## PROFILING MODES
 
