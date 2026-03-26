@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <stdatomic.h>
+#include <sched.h>
 #ifdef __linux__
 #include <sys/syscall.h>
 #endif
@@ -188,6 +189,7 @@ typedef struct rperf_profiler {
      * profile_inc/dec transitions 0↔1 arm/disarm the timer.
      * Modified only under GVL, so plain int is safe. */
     int profile_refcount;
+    int worker_paused;  /* 1 when nanosleep worker is in paused cond_wait */
 } rperf_profiler_t;
 
 static rperf_profiler_t g_profiler;
@@ -994,8 +996,10 @@ rperf_worker_nanosleep_func(void *arg)
     CHECKED(pthread_mutex_lock(&prof->worker_mutex));
     while (prof->running) {
         if (RPERF_PAUSED(prof)) {
-            /* Paused: wait indefinitely until signaled (resume or stop) */
+            /* Paused: mark as paused so disarm can confirm, then wait */
+            prof->worker_paused = 1;
             CHECKED(pthread_cond_wait(&prof->worker_cond, &prof->worker_mutex));
+            prof->worker_paused = 0;
             /* Reset deadline on wake to avoid burst of catch-up triggers */
             clock_gettime(CLOCK_REALTIME, &deadline);
             deadline.tv_nsec += interval_ns;
@@ -1244,6 +1248,7 @@ rb_rperf_start(VALUE self, VALUE vfreq, VALUE vmode, VALUE vagg, VALUE vsig, VAL
 
     g_profiler.running = 1;
     g_profiler.profile_refcount = RTEST(vdefer) ? 0 : 1;
+    g_profiler.worker_paused = 0;
 
 #if RPERF_USE_TIMER_SIGNAL
     g_profiler.timer_signal = timer_signal;
@@ -1619,7 +1624,15 @@ rperf_disarm_timer(rperf_profiler_t *prof)
         return;
     }
 #endif
-    /* nanosleep mode: worker will see RPERF_PAUSED on next iteration */
+    /* nanosleep mode: wake the worker and wait until it enters paused state */
+    CHECKED(pthread_mutex_lock(&prof->worker_mutex));
+    while (!prof->worker_paused) {
+        CHECKED(pthread_cond_signal(&prof->worker_cond));
+        CHECKED(pthread_mutex_unlock(&prof->worker_mutex));
+        sched_yield();
+        CHECKED(pthread_mutex_lock(&prof->worker_mutex));
+    }
+    CHECKED(pthread_mutex_unlock(&prof->worker_mutex));
 }
 
 /* Helper: reset prev_time_ns for all threads (called on resume to avoid

@@ -170,7 +170,6 @@ class TestRperfDefer < Test::Unit::TestCase
     end
 
     snap = Rperf.snapshot
-    triggers_after_first = snap[:trigger_count]
     samples_after_first = snap[:aggregated_samples].size
 
     # Gap: timer should be paused here
