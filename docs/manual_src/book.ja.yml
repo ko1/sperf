@@ -1,0 +1,24 @@
+title: "rperf ガイド"
+author: "rperf project"
+language: "ja"
+chapters:
+  - cover: ja/cover.md
+  - part: ja/part1.md
+    chapters:
+      - ja/01-introduction.md
+      - ja/02-installation.md
+  - part: ja/part2.md
+    chapters:
+      - ja/03-cli-usage.md
+      - ja/04-library-usage.md
+      - ja/05-interpreting-results.md
+      - ja/06-output-formats.md
+      - ja/07-framework-integration.md
+  - part: ja/part3.md
+    chapters:
+      - ja/08-architecture.md
+      - ja/09-sampling.md
+      - ja/10-aggregation.md
+      - ja/11-output-encoding.md
+  - appendix:
+    - ja/a1-reference.md

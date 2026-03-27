@@ -1,0 +1,24 @@
+title: "rperf guide"
+author: "rperf project"
+language: "en"
+chapters:
+  - cover: en/cover.md
+  - part: en/part1.md
+    chapters:
+      - en/01-introduction.md
+      - en/02-installation.md
+  - part: en/part2.md
+    chapters:
+      - en/03-cli-usage.md
+      - en/04-library-usage.md
+      - en/05-interpreting-results.md
+      - en/06-output-formats.md
+      - en/07-framework-integration.md
+  - part: en/part3.md
+    chapters:
+      - en/08-architecture.md
+      - en/09-sampling.md
+      - en/10-aggregation.md
+      - en/11-output-encoding.md
+  - appendix:
+    - en/a1-reference.md

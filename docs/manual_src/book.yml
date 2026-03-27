@@ -1,28 +1,7 @@
-title: "rperf guide"
-author: "rperf project"
 repository: "https://github.com/ko1/rperf"
-language: "en"
 ai_generated: true
 output_dir: ../manual
 bibliography: references.bib
-chapters:
-  - cover: cover.md
-  - part: part1.md
-    chapters:
-      - 01-introduction.md
-      - 02-installation.md
-  - part: part2.md
-    chapters:
-      - 03-cli-usage.md
-      - 04-library-usage.md
-      - 05-interpreting-results.md
-      - 06-output-formats.md
-      - 07-framework-integration.md
-  - part: part3.md
-    chapters:
-      - 08-architecture.md
-      - 09-sampling.md
-      - 10-aggregation.md
-      - 11-output-encoding.md
-  - appendix:
-    - a1-reference.md
+translations:
+  en: book.en.yml
+  ja: book.ja.yml
