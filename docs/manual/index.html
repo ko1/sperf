@@ -3633,6 +3633,8 @@ graph TD
 
 <p>This is a Ruby VM bug, not a rperf bug, and affects all postponed-job-based profilers.</p>
 
+<p>However, rperf mitigates this on Linux by using <code>SIGEV_THREAD_ID</code> to deliver the timer signal exclusively to the dedicated worker thread, rather than to an arbitrary Ruby thread. Since the worker thread calls <code>rb_postponed_job_trigger</code> itself — rather than having a signal handler fire on a Ruby thread that may have a stale <code>running_ec</code> — the race window is significantly narrower. The nanosleep fallback (macOS and <code>signal: false</code>) behaves similarly, as the worker thread is the sole caller of <code>rb_postponed_job_trigger</code>.</p>
+
 <h3 id="en--08-architecture--single-session">8.6.2 Single session</h3>
 
 <p>Only one profiling session can be active at a time due to the global profiler state. Calling <code>Rperf.start</code> while already profiling is not supported.</p>
@@ -6560,6 +6562,8 @@ graph TD
 <p>Ruby VM には、タイマースレッドからの <code>rb_postponed_job_trigger</code> が誤ったスレッドの実行コンテキストに割り込みフラグを設定してしまう既知のレース条件があります。これは、新しいスレッドのネイティブスレッドが GVL を取得する前に開始された場合に発生します。結果として、C のビジーウェイトを行っているスレッドのタイマーサンプルが欠落し、その CPU 時間が次の SUSPENDED イベントのスタックに漏れ出す可能性があります。</p>
 
 <p>これは rperf のバグではなく Ruby VM のバグであり、すべての postponed job ベースのプロファイラに影響します。</p>
+
+<p>ただし、rperf は Linux において <code>SIGEV_THREAD_ID</code> を使用してタイマーシグナルを専用のワーカースレッドにのみ配信することで、この問題を緩和しています。任意の Ruby スレッド上でシグナルハンドラが発火するのではなく、ワーカースレッド自身が <code>rb_postponed_job_trigger</code> を呼び出すため、古い <code>running_ec</code> を参照するレースウィンドウが大幅に狭くなります。nanosleep フォールバック（macOS および <code>signal: false</code>）も同様に、ワーカースレッドが <code>rb_postponed_job_trigger</code> の唯一の呼び出し元であるため、同じ効果があります。</p>
 
 <h3 id="ja--08-architecture--単一セッション">8.6.2 単一セッション</h3>
 

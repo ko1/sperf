@@ -97,6 +97,8 @@ There is a known race condition in the Ruby VM where `rb_postponed_job_trigger` 
 
 This is a Ruby VM bug, not a rperf bug, and affects all postponed-job-based profilers.
 
+However, rperf mitigates this on Linux by using `SIGEV_THREAD_ID` to deliver the timer signal exclusively to the dedicated worker thread, rather than to an arbitrary Ruby thread. Since the worker thread calls `rb_postponed_job_trigger` itself — rather than having a signal handler fire on a Ruby thread that may have a stale `running_ec` — the race window is significantly narrower. The nanosleep fallback (macOS and `signal: false`) behaves similarly, as the worker thread is the sole caller of `rb_postponed_job_trigger`.
+
 ### Single session
 
 Only one profiling session can be active at a time due to the global profiler state. Calling `Rperf.start` while already profiling is not supported.
